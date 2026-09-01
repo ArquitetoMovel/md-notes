@@ -77,7 +77,9 @@ func ExecuteExCommand(
 			targetPath = parts[1]
 		}
 		var cmd tea.Cmd
-		if saveFunc != nil {
+		if saveFunc != nil && quitFunc != nil {
+			cmd = tea.Sequence(saveFunc(targetPath, false), quitFunc(false))
+		} else if saveFunc != nil {
 			cmd = saveFunc(targetPath, false)
 		}
 		return CommandResult{Cmd: cmd, CloseMode: true}
