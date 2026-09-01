@@ -1,0 +1,112 @@
+{
+  "project": "md-notes",
+  "version": "1.0",
+  "lang": "pt-BR",
+  "prdPath": "docs/PRD.md",
+  "updatedAt": "2026-08-31T21:37:40Z",
+  "features": [
+    {
+      "id": "F01",
+      "name": "CLI Entrypoint & File Buffer Manager",
+      "status": "todo",
+      "wave": 1,
+      "priority": 1,
+      "specPath": ".sdd-builder/F01-cli-entrypoint-file-buffer-manager",
+      "updatedAt": "2026-08-31T21:37:40Z",
+      "note": ""
+    },
+    {
+      "id": "F02",
+      "name": "Configuration & Theme Engine",
+      "status": "todo",
+      "wave": 1,
+      "priority": 1,
+      "specPath": ".sdd-builder/F02-configuration-theme-engine",
+      "updatedAt": "2026-08-31T21:43:40Z",
+      "note": ""
+    },
+    {
+      "id": "F03",
+      "name": "Modal Editing Engine (Vim Emulation)",
+      "status": "todo",
+      "wave": 2,
+      "priority": 1,
+      "specPath": "",
+      "updatedAt": "2026-08-30T21:44:00Z",
+      "note": ""
+    },
+    {
+      "id": "F04",
+      "name": "Live Markdown Syntax Parser & Highlighting",
+      "status": "todo",
+      "wave": 2,
+      "priority": 1,
+      "specPath": "",
+      "updatedAt": "2026-08-30T21:44:00Z",
+      "note": ""
+    },
+    {
+      "id": "F05",
+      "name": "Dynamic Markdown Table Engine",
+      "status": "todo",
+      "wave": 3,
+      "priority": 2,
+      "specPath": "",
+      "updatedAt": "2026-08-30T21:44:00Z",
+      "note": ""
+    },
+    {
+      "id": "F06",
+      "name": "Interactive Search & Replace System",
+      "status": "todo",
+      "wave": 3,
+      "priority": 2,
+      "specPath": "",
+      "updatedAt": "2026-08-30T21:44:00Z",
+      "note": ""
+    },
+    {
+      "id": "F07",
+      "name": "TUI Viewport & Status Line Renderer",
+      "status": "todo",
+      "wave": 4,
+      "priority": 1,
+      "specPath": "",
+      "updatedAt": "2026-08-30T21:44:00Z",
+      "note": ""
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D01",
+      "title": "Technology Stack",
+      "decision": "Go com Bubble Tea e Lipgloss para binário nativo compilado único e multiplataforma"
+    },
+    {
+      "id": "D02",
+      "title": "Markdown Rendering Mode",
+      "decision": "Sintaxe inline destacada em tempo real com marcadores (#, **, *) atenuados (dimmed)"
+    },
+    {
+      "id": "D03",
+      "title": "Table Engine Behavior",
+      "decision": "Alinhamento automático inteligente dinâmico de colunas e cabeçalhos em tempo real"
+    },
+    {
+      "id": "D04",
+      "title": "Vim Emulation & Clipboard",
+      "decision": "Subconjunto essencial de navegação e edição modal do Vim com sincronização automática com clipboard do SO"
+    },
+    {
+      "id": "D05",
+      "title": "Configuration Format & Themes",
+      "decision": "Arquivo TOML (~/.config/md-notes/config.toml) com 7 temas embutidos e paletas customizadas Hex/RGB"
+    },
+    {
+      "id": "D06",
+      "title": "CLI & Input Support",
+      "decision": "Suporte a abertura de arquivo ('mdn doc.md'), buffer scratchpad ('mdn') e stdin pipe ('cat doc.md | mdn')"
+    }
+  ],
+  "notes": "This repository has no agent-facing documentation (AGENTS.md / README.md). Generating them significantly improves every later step of this flow — spec quality, stack detection and implementation all depend on them. Consider creating them."
+}
