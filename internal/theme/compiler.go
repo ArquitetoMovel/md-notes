@@ -24,8 +24,12 @@ type CompiledTheme struct {
 	StatusBar     lipgloss.Style
 	StatusBarMode lipgloss.Style
 	SearchMatch   lipgloss.Style
-	LineNumber    lipgloss.Style
-	ActiveLineNo  lipgloss.Style
+	LineNumber     lipgloss.Style
+	ActiveLineNo   lipgloss.Style
+	GutterNormal   lipgloss.Style
+	GutterCurrent  lipgloss.Style
+	ScrollbarTrack lipgloss.Style
+	ScrollbarThumb lipgloss.Style
 }
 
 func applyOverrides(p Palette, overrides ColorOverrides) Palette {
@@ -106,7 +110,11 @@ func CompileTheme(palette Palette, overrides ColorOverrides) *CompiledTheme {
 		StatusBar:     lipgloss.NewStyle().Background(lipgloss.Color(p.StatusBarBg)).Foreground(lipgloss.Color(p.StatusBarFg)),
 		StatusBarMode: lipgloss.NewStyle().Background(lipgloss.Color(p.H1)).Foreground(lipgloss.Color(p.StatusBarBg)).Bold(true),
 		SearchMatch:   lipgloss.NewStyle().Background(lipgloss.Color(p.SearchMatchBg)).Foreground(lipgloss.Color(p.SearchMatchFg)).Bold(true),
-		LineNumber:    lipgloss.NewStyle().Foreground(lipgloss.Color(p.Muted)),
-		ActiveLineNo:  lipgloss.NewStyle().Foreground(lipgloss.Color(p.H1)).Bold(true),
+		LineNumber:     lipgloss.NewStyle().Foreground(lipgloss.Color(p.Muted)),
+		ActiveLineNo:   lipgloss.NewStyle().Foreground(lipgloss.Color(p.H1)).Bold(true),
+		GutterNormal:   lipgloss.NewStyle().Foreground(lipgloss.Color(p.Muted)),
+		GutterCurrent:  lipgloss.NewStyle().Foreground(lipgloss.Color(p.H1)).Bold(true),
+		ScrollbarTrack: lipgloss.NewStyle().Foreground(lipgloss.Color(p.Muted)),
+		ScrollbarThumb: lipgloss.NewStyle().Foreground(lipgloss.Color(p.TableBorder)),
 	}
 }

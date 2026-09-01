@@ -12,6 +12,9 @@ const (
 	ModeCommand
 )
 
+// ModeVisual is an alias for ModeVisualChar (standard characterwise visual mode).
+const ModeVisual = ModeVisualChar
+
 // String returns the user-facing string representation of the mode.
 func (m Mode) String() string {
 	switch m {
