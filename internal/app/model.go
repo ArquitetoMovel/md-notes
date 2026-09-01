@@ -102,8 +102,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c":
+		if msg.Type == tea.KeyCtrlC || msg.String() == "ctrl+c" {
 			if m.Buffer.IsDirty {
 				m.StatusMsg = "E37: Alterações não salvas. Use :w para salvar ou :q! para forçar a saída"
 				return m, nil
