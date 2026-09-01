@@ -6,6 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"md-notes/internal/buffer"
+	"md-notes/internal/config"
+	"md-notes/internal/theme"
 	"md-notes/internal/watcher"
 )
 
@@ -23,18 +25,45 @@ type SaveResultMsg struct {
 	Err error
 }
 
-// Model represents the root Bubble Tea application model for F01.
-type Model struct {
-	Buffer    *buffer.Buffer
-	Watcher   *watcher.Watcher
-	StatusMsg string
-	Quitting  bool
-	Width     int
-	Height    int
+// ModelOption allows optional configuration of the app Model.
+type ModelOption func(*Model)
+
+// WithConfig sets the initial Config.
+func WithConfig(cfg *config.Config) ModelOption {
+	return func(m *Model) {
+		m.Config = cfg
+	}
 }
 
-// NewModel creates a new Model instance.
-func NewModel(buf *buffer.Buffer, w *watcher.Watcher) *Model {
+// WithTheme sets the initial CompiledTheme.
+func WithTheme(th *theme.CompiledTheme) ModelOption {
+	return func(m *Model) {
+		m.Theme = th
+	}
+}
+
+// WithConfigWatcher sets the configuration file watcher.
+func WithConfigWatcher(cw *config.Watcher) ModelOption {
+	return func(m *Model) {
+		m.ConfigWatcher = cw
+	}
+}
+
+// Model represents the root Bubble Tea application model.
+type Model struct {
+	Buffer        *buffer.Buffer
+	Watcher       *watcher.Watcher
+	Config        *config.Config
+	Theme         *theme.CompiledTheme
+	ConfigWatcher *config.Watcher
+	StatusMsg     string
+	Quitting      bool
+	Width         int
+	Height        int
+}
+
+// NewModel creates a new Model instance with sensible defaults and optional parameters.
+func NewModel(buf *buffer.Buffer, w *watcher.Watcher, opts ...ModelOption) *Model {
 	status := ""
 	if buf.IsNewFile && buf.FilePath != "" {
 		status = "[Novo Arquivo]"
@@ -42,7 +71,7 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher) *Model {
 		status = "[Stdin Buffer]"
 	}
 
-	return &Model{
+	m := &Model{
 		Buffer:    buf,
 		Watcher:   w,
 		StatusMsg: status,
@@ -50,6 +79,21 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher) *Model {
 		Width:     80,
 		Height:    24,
 	}
+
+	for _, opt := range opts {
+		opt(m)
+	}
+
+	if m.Config == nil {
+		m.Config = config.DefaultConfig()
+	}
+	if m.Theme == nil {
+		resolvedTheme := theme.ResolveThemeName(m.Config.Theme)
+		palette, _ := theme.GetPalette(resolvedTheme)
+		m.Theme = theme.CompileTheme(palette, m.Config.Colors)
+	}
+
+	return m
 }
 
 // Init initializes the Bubble Tea program.
@@ -63,6 +107,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
+		return m, nil
+
+	case config.ThemeReloadedMsg:
+		if msg.Config != nil {
+			m.Config = msg.Config
+		}
+		if msg.CompiledTheme != nil {
+			m.Theme = msg.CompiledTheme
+		}
+		if msg.Warning != "" {
+			m.StatusMsg = msg.Warning
+		}
 		return m, nil
 
 	case QuitMsg:

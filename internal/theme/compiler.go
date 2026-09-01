@@ -2,7 +2,6 @@ package theme
 
 import (
 	"github.com/charmbracelet/lipgloss"
-	"md-notes/internal/config"
 )
 
 // CompiledTheme contains pre-compiled immutable lipgloss.Style instances for 60 FPS zero-allocation rendering.
@@ -29,7 +28,7 @@ type CompiledTheme struct {
 	ActiveLineNo  lipgloss.Style
 }
 
-func applyOverrides(p Palette, overrides config.ColorOverrides) Palette {
+func applyOverrides(p Palette, overrides ColorOverrides) Palette {
 	if overrides.H1 != "" {
 		p.H1 = overrides.H1
 	}
@@ -85,7 +84,7 @@ func applyOverrides(p Palette, overrides config.ColorOverrides) Palette {
 }
 
 // CompileTheme compiles the given palette and user overrides into a CompiledTheme struct.
-func CompileTheme(palette Palette, overrides config.ColorOverrides) *CompiledTheme {
+func CompileTheme(palette Palette, overrides ColorOverrides) *CompiledTheme {
 	p := applyOverrides(palette, overrides)
 
 	return &CompiledTheme{

@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"md-notes/internal/theme"
 )
 
 // EditorConfig holds editor-specific behavioral preferences.
@@ -13,25 +15,7 @@ type EditorConfig struct {
 }
 
 // ColorOverrides contains optional hex or ANSI 256 color code overrides for theme tokens.
-type ColorOverrides struct {
-	H1            string `toml:"h1,omitempty"`
-	H2            string `toml:"h2,omitempty"`
-	H3            string `toml:"h3,omitempty"`
-	H4            string `toml:"h4,omitempty"`
-	H5            string `toml:"h5,omitempty"`
-	H6            string `toml:"h6,omitempty"`
-	Muted         string `toml:"muted,omitempty"`
-	Bold          string `toml:"bold,omitempty"`
-	Italic        string `toml:"italic,omitempty"`
-	CodeBg        string `toml:"code_bg,omitempty"`
-	CodeFg        string `toml:"code_fg,omitempty"`
-	TableBorder   string `toml:"table_border,omitempty"`
-	TableHeader   string `toml:"table_header,omitempty"`
-	StatusBarBg   string `toml:"status_bar_bg,omitempty"`
-	StatusBarFg   string `toml:"status_bar_fg,omitempty"`
-	SearchMatchBg string `toml:"search_match_bg,omitempty"`
-	SearchMatchFg string `toml:"search_match_fg,omitempty"`
-}
+type ColorOverrides = theme.ColorOverrides
 
 // Config represents the root configuration file structure.
 type Config struct {

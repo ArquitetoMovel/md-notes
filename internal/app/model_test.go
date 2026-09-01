@@ -9,6 +9,8 @@ import (
 
 	"md-notes/internal/app"
 	"md-notes/internal/buffer"
+	"md-notes/internal/config"
+	"md-notes/internal/theme"
 	"md-notes/internal/watcher"
 )
 
@@ -74,5 +76,36 @@ func TestApp_ExternalReload_CleanBuffer(t *testing.T) {
 	line, _ := m.Buffer.GetLine(0)
 	if line.String() != "Linha modificada externamente" {
 		t.Fatalf("expected buffer reloaded with 'Linha modificada externamente', got %q", line.String())
+	}
+}
+
+func TestApp_ThemeReloadedMsg(t *testing.T) {
+	buf := buffer.NewEmptyBuffer("teste.md")
+	m := app.NewModel(buf, nil)
+
+	newCfg := &config.Config{
+		Theme: "nord",
+		Editor: config.EditorConfig{
+			TabSize:     2,
+			LineNumbers: false,
+		},
+	}
+	pal, _ := theme.GetPalette("nord")
+	newCompiled := theme.CompileTheme(pal, newCfg.Colors)
+
+	_, _ = m.Update(config.ThemeReloadedMsg{
+		Config:        newCfg,
+		CompiledTheme: newCompiled,
+		Warning:       "Aviso de teste",
+	})
+
+	if m.Config.Theme != "nord" {
+		t.Errorf("Esperado tema 'nord', obtido: '%s'", m.Config.Theme)
+	}
+	if m.Theme.Palette.Name != "nord" {
+		t.Errorf("Esperado paleta 'nord', obtido: '%s'", m.Theme.Palette.Name)
+	}
+	if m.StatusMsg != "Aviso de teste" {
+		t.Errorf("Esperado StatusMsg 'Aviso de teste', obtido: '%s'", m.StatusMsg)
 	}
 }

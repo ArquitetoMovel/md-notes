@@ -5,10 +5,13 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"md-notes/internal/app"
 	"md-notes/internal/buffer"
+	"md-notes/internal/config"
+	"md-notes/internal/theme"
 	"md-notes/internal/watcher"
 )
 
@@ -57,6 +60,12 @@ func Execute(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer,
 		buf = buffer.NewScratchpadBuffer()
 	}
 
+	// Load configuration and initialize compiled theme
+	cfg, warnings, _ := config.LoadConfig()
+	resolvedTheme := theme.ResolveThemeName(cfg.Theme)
+	palette, _ := theme.GetPalette(resolvedTheme)
+	compiledTheme := theme.CompileTheme(palette, cfg.Colors)
+
 	// Setup file watcher for non-scratchpad, non-pipe files
 	var w *watcher.Watcher
 	if !buf.IsStdinBuffer && buf.FilePath != "" {
@@ -66,7 +75,26 @@ func Execute(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer,
 		}
 	}
 
-	model := app.NewModel(buf, w)
+	// Setup configuration file watcher for dynamic hot-reload
+	var configWatcher *config.Watcher
+	configPath, configPathErr := config.GetConfigFilePath()
+	if configPathErr == nil {
+		configWatcher, err = config.NewWatcher()
+		if err != nil {
+			configWatcher = nil
+		}
+	}
+
+	model := app.NewModel(
+		buf,
+		w,
+		app.WithConfig(cfg),
+		app.WithTheme(compiledTheme),
+		app.WithConfigWatcher(configWatcher),
+	)
+	if len(warnings) > 0 {
+		model.StatusMsg = strings.Join(warnings, " | ")
+	}
 
 	var programOpts []tea.ProgramOption
 	var ttyCloser io.Closer
@@ -91,6 +119,11 @@ func Execute(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer,
 	if w != nil && buf.FilePath != "" {
 		_ = w.Start(buf.FilePath, p.Send)
 		defer w.Close()
+	}
+
+	if configWatcher != nil && configPath != "" {
+		_ = configWatcher.Start(configPath, p.Send)
+		defer configWatcher.Close()
 	}
 
 	if ttyCloser != nil {

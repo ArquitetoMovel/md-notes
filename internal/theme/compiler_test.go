@@ -4,8 +4,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"md-notes/internal/config"
 )
 
 // TC04 & TC10: Compilação e Sobreposição de Cores Granulares (Hex / ANSI)
@@ -15,7 +13,7 @@ func TestCompiler_ApplyColorOverrides(t *testing.T) {
 		t.Fatal("Tema dracula não encontrado")
 	}
 
-	overrides := config.ColorOverrides{
+	overrides := ColorOverrides{
 		H1:          "#FF0000",
 		TableBorder: "#00FF00",
 		CodeBg:      "#112233",
@@ -44,7 +42,7 @@ func TestCompiler_ApplyColorOverrides(t *testing.T) {
 // TC09 & TC12: Validação de Contrato de Estilos e Renderização com Escape ANSI
 func TestCompiler_CompileTheme_Success(t *testing.T) {
 	palette, _ := GetPalette("monokai")
-	compiled := CompileTheme(palette, config.ColorOverrides{})
+	compiled := CompileTheme(palette, ColorOverrides{})
 
 	h1Rendered := compiled.H1.Render("# Título 1")
 	if !strings.Contains(h1Rendered, "Título 1") {
@@ -65,7 +63,7 @@ func TestCompiler_CompileTheme_Success(t *testing.T) {
 // TC06: Performance de Compilação de Estilos (< 5 ms)
 func TestCompiler_Performance(t *testing.T) {
 	palette, _ := GetPalette("catppuccin-mocha")
-	overrides := config.ColorOverrides{
+	overrides := ColorOverrides{
 		H1:     "#FF1122",
 		CodeBg: "#001122",
 	}
