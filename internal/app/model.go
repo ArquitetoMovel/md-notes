@@ -8,6 +8,7 @@ import (
 	"md-notes/internal/buffer"
 	"md-notes/internal/config"
 	"md-notes/internal/theme"
+	"md-notes/internal/vim"
 	"md-notes/internal/watcher"
 )
 
@@ -53,6 +54,7 @@ func WithConfigWatcher(cw *config.Watcher) ModelOption {
 type Model struct {
 	Buffer        *buffer.Buffer
 	Watcher       *watcher.Watcher
+	Vim           *vim.Engine
 	Config        *config.Config
 	Theme         *theme.CompiledTheme
 	ConfigWatcher *config.Watcher
@@ -78,6 +80,18 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher, opts ...ModelOption) *Mode
 		Quitting:  false,
 		Width:     80,
 		Height:    24,
+	}
+
+	m.Vim = vim.NewEngine(buf)
+	m.Vim.SaveCallback = func(targetPath string, force bool) tea.Cmd {
+		return func() tea.Msg {
+			return SaveFileMsg{TargetFilePath: targetPath, Force: force}
+		}
+	}
+	m.Vim.QuitCallback = func(force bool) tea.Cmd {
+		return func() tea.Msg {
+			return QuitMsg{Force: force}
+		}
 	}
 
 	for _, opt := range opts {
@@ -133,7 +147,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.Watcher != nil {
 			m.Watcher.Pause()
 		}
-		err := buffer.AtomicSave(m.Buffer, msg.TargetFilePath)
+		targetPath := msg.TargetFilePath
+		if targetPath == "" {
+			targetPath = m.Buffer.FilePath
+		}
+		if targetPath == "" {
+			m.StatusMsg = "Erro: Nenhum nome de arquivo definido. Use :w <caminho>"
+			if m.Watcher != nil {
+				m.Watcher.Resume()
+			}
+			return m, func() tea.Msg { return SaveResultMsg{Err: fmt.Errorf("nenhum nome de arquivo definido")} }
+		}
+
+		err := buffer.AtomicSave(m.Buffer, targetPath)
 		if m.Watcher != nil {
 			m.Watcher.Resume()
 		}
@@ -150,6 +176,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			reloaded, err := buffer.LoadFromFile(msg.Path)
 			if err == nil {
 				m.Buffer = reloaded
+				if m.Vim != nil {
+					m.Vim.Buffer = reloaded
+				}
 				m.StatusMsg = "Arquivo recarregado do disco."
 			}
 		} else {
@@ -165,6 +194,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.Quitting = true
 			return m, tea.Quit
+		}
+
+		if m.Vim != nil {
+			cmd, statusMsg := m.Vim.HandleKey(msg)
+			if statusMsg != "" {
+				m.StatusMsg = statusMsg
+			}
+			if cmd != nil {
+				return m, cmd
+			}
+			return m, nil
 		}
 	}
 
@@ -186,7 +226,20 @@ func (m *Model) View() string {
 		}
 	}
 
-	if m.StatusMsg != "" {
+	if m.Vim != nil && m.Vim.State.CurrentMode == vim.ModeCommand {
+		sb.WriteString(fmt.Sprintf("\n:%s", m.Vim.State.CommandInput))
+	} else if m.Vim != nil && m.Vim.State.CurrentMode != vim.ModeNormal {
+		switch m.Vim.State.CurrentMode {
+		case vim.ModeInsert:
+			sb.WriteString("\n-- INSERT --")
+		case vim.ModeVisualChar:
+			sb.WriteString("\n-- VISUAL --")
+		case vim.ModeVisualLine:
+			sb.WriteString("\n-- VISUAL LINE --")
+		case vim.ModeVisualBlock:
+			sb.WriteString("\n-- VISUAL BLOCK --")
+		}
+	} else if m.StatusMsg != "" {
 		sb.WriteString(fmt.Sprintf("\n%s", m.StatusMsg))
 	}
 
