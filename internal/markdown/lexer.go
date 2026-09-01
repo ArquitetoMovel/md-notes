@@ -77,6 +77,10 @@ func (l *Lexer) lexInlineRecursive(text string, state InlineStyleState, spans *[
 				} else {
 					style = style.Underline(true)
 				}
+			} else if state.LastOpened == TokenHeading {
+				tokenType = TokenHeading
+			} else if state.LastOpened == TokenQuote {
+				tokenType = TokenQuote
 			} else if state.LastOpened == TokenItalic || (state.Italic && !state.Bold) {
 				tokenType = TokenItalic
 				if l.theme != nil {
