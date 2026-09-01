@@ -10,8 +10,11 @@ import (
 
 // EditorConfig holds editor-specific behavioral preferences.
 type EditorConfig struct {
-	TabSize     int  `toml:"tab_size"`
-	LineNumbers bool `toml:"line_numbers"`
+	TabSize             int  `toml:"tab_size"`
+	LineNumbers         bool `toml:"line_numbers"`
+	RelativeLineNumbers bool `toml:"relative_line_numbers"`
+	Scrolloff           int  `toml:"scrolloff"`
+	WordWrap            bool `toml:"word_wrap"`
 }
 
 // ColorOverrides contains optional hex or ANSI 256 color code overrides for theme tokens.
@@ -29,8 +32,11 @@ func DefaultConfig() *Config {
 	return &Config{
 		Theme: "default-dark",
 		Editor: EditorConfig{
-			TabSize:     4,
-			LineNumbers: true,
+			TabSize:             4,
+			LineNumbers:         true,
+			RelativeLineNumbers: false,
+			Scrolloff:           4,
+			WordWrap:            true,
 		},
 		Colors: ColorOverrides{},
 	}

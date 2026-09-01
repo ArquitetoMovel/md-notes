@@ -133,7 +133,7 @@ func RenderStatusLine(state StatusState, th *theme.CompiledTheme, width int) str
 
 // RenderCommandLine renders the bottom prompt line (command input or status message).
 func RenderCommandLine(state StatusState, th *theme.CompiledTheme, width int) string {
-	if state.CommandInput != "" {
+	if state.Mode == vim.ModeCommand {
 		prompt := ":" + state.CommandInput
 		if th != nil {
 			return th.StatusBar.Render(prompt)

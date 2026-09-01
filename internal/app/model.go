@@ -5,9 +5,12 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/mattn/go-runewidth"
 	"md-notes/internal/buffer"
 	"md-notes/internal/config"
+	"md-notes/internal/search"
 	"md-notes/internal/theme"
+	"md-notes/internal/ui"
 	"md-notes/internal/vim"
 	"md-notes/internal/watcher"
 )
@@ -58,6 +61,8 @@ type Model struct {
 	Config        *config.Config
 	Theme         *theme.CompiledTheme
 	ConfigWatcher *config.Watcher
+	Viewport      *ui.Viewport
+	SearchEngine  *search.SearchEngine
 	StatusMsg     string
 	Quitting      bool
 	Width         int
@@ -74,13 +79,16 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher, opts ...ModelOption) *Mode
 	}
 
 	m := &Model{
-		Buffer:    buf,
-		Watcher:   w,
-		StatusMsg: status,
-		Quitting:  false,
-		Width:     80,
-		Height:    24,
+		Buffer:       buf,
+		Watcher:      w,
+		StatusMsg:    status,
+		Quitting:     false,
+		Width:        80,
+		Height:       24,
+		SearchEngine: search.NewSearchEngine(),
 	}
+
+	m.Viewport = ui.NewViewport(80, 22)
 
 	m.Vim = vim.NewEngine(buf)
 	m.Vim.SaveCallback = func(targetPath string, force bool) tea.Cmd {
@@ -101,6 +109,13 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher, opts ...ModelOption) *Mode
 	if m.Config == nil {
 		m.Config = config.DefaultConfig()
 	}
+
+	if m.Viewport != nil && m.Config != nil {
+		m.Viewport.RelativeNum = m.Config.Editor.RelativeLineNumbers
+		m.Viewport.Scrolloff = m.Config.Editor.Scrolloff
+		m.Viewport.SoftWrap = m.Config.Editor.WordWrap
+	}
+
 	if m.Theme == nil {
 		resolvedTheme := theme.ResolveThemeName(m.Config.Theme)
 		palette, _ := theme.GetPalette(resolvedTheme)
@@ -121,11 +136,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
+		vpHeight := msg.Height - 2
+		if vpHeight < 1 {
+			vpHeight = 1
+		}
+		if m.Viewport != nil {
+			m.Viewport.SetDimensions(msg.Width, vpHeight)
+		}
 		return m, nil
 
 	case config.ThemeReloadedMsg:
 		if msg.Config != nil {
 			m.Config = msg.Config
+			if m.Viewport != nil {
+				m.Viewport.RelativeNum = m.Config.Editor.RelativeLineNumbers
+				m.Viewport.Scrolloff = m.Config.Editor.Scrolloff
+				m.Viewport.SoftWrap = m.Config.Editor.WordWrap
+			}
 		}
 		if msg.CompiledTheme != nil {
 			m.Theme = msg.CompiledTheme
@@ -211,37 +238,119 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// View renders the terminal output for the model.
+// View renders the complete visual terminal UI.
 func (m *Model) View() string {
 	if m.Quitting {
-		return ""
+		return ui.GetRestoreCursorSequence()
 	}
 
-	var sb strings.Builder
-	for i := 0; i < m.Buffer.LineCount(); i++ {
-		line, _ := m.Buffer.GetLine(i)
-		sb.WriteString(line.String())
-		if i < m.Buffer.LineCount()-1 {
-			sb.WriteString("\n")
+	if m.Viewport == nil {
+		m.Viewport = ui.NewViewport(m.Width, m.Height-2)
+	}
+
+	totalLines := m.Buffer.LineCount()
+	m.Viewport.AdjustScroll(m.Buffer.Cursor, totalLines)
+
+	visibleLines := m.Viewport.GetVisibleLines(m.Buffer)
+	vpHeight := m.Viewport.Height
+	if vpHeight < 1 {
+		vpHeight = 1
+	}
+
+	scrollbar := ui.RenderScrollbar(totalLines, vpHeight, m.Viewport.TopLine, m.Theme)
+	gutterW := ui.CalculateGutterWidth(totalLines)
+
+	var screenLines []string
+	for rowIdx := 0; rowIdx < vpHeight; rowIdx++ {
+		var gutterCell string
+		var contentCell string
+
+		if rowIdx < len(visibleLines) {
+			vLine := visibleLines[rowIdx]
+			if vLine.WrapIndex == 0 {
+				gutterCell = ui.RenderGutterLine(vLine.LogicalLine, m.Buffer.Cursor.Line, totalLines, m.Viewport.RelativeNum, m.Theme)
+			} else {
+				gutterCell = ui.RenderEmptyGutterLine(totalLines, m.Theme)
+			}
+			contentCell = vLine.Text
+		} else {
+			// Empty area below document
+			if m.Theme != nil {
+				gutterCell = m.Theme.Muted.Render(fmt.Sprintf(" %*s ", gutterW-2, "~"))
+			} else {
+				gutterCell = fmt.Sprintf(" %*s ", gutterW-2, "~")
+			}
+			contentCell = ""
 		}
-	}
 
-	if m.Vim != nil && m.Vim.State.CurrentMode == vim.ModeCommand {
-		sb.WriteString(fmt.Sprintf("\n:%s", m.Vim.State.CommandInput))
-	} else if m.Vim != nil && m.Vim.State.CurrentMode != vim.ModeNormal {
-		switch m.Vim.State.CurrentMode {
-		case vim.ModeInsert:
-			sb.WriteString("\n-- INSERT --")
-		case vim.ModeVisualChar:
-			sb.WriteString("\n-- VISUAL --")
-		case vim.ModeVisualLine:
-			sb.WriteString("\n-- VISUAL LINE --")
-		case vim.ModeVisualBlock:
-			sb.WriteString("\n-- VISUAL BLOCK --")
+		sbCell := " "
+		if rowIdx < len(scrollbar) {
+			sbCell = scrollbar[rowIdx]
 		}
-	} else if m.StatusMsg != "" {
-		sb.WriteString(fmt.Sprintf("\n%s", m.StatusMsg))
+
+		contentWidthAvailable := m.Width - gutterW - 1
+		if contentWidthAvailable < 0 {
+			contentWidthAvailable = 0
+		}
+		contentVisualW := runewidth.StringWidth(contentCell)
+		pad := contentWidthAvailable - contentVisualW
+		if pad < 0 {
+			pad = 0
+		}
+
+		lineStr := gutterCell + contentCell + strings.Repeat(" ", pad) + sbCell
+		screenLines = append(screenLines, lineStr)
 	}
 
-	return sb.String()
+	// Modal & status information
+	currentMode := vim.ModeNormal
+	commandInput := ""
+	if m.Vim != nil {
+		currentMode = m.Vim.State.CurrentMode
+		commandInput = m.Vim.State.CommandInput
+	}
+
+	searchCur := 0
+	searchTot := 0
+	if m.SearchEngine != nil && m.SearchEngine.Result.TotalCount > 0 {
+		searchCur = m.SearchEngine.Result.CurrentIndex
+		searchTot = m.SearchEngine.Result.TotalCount
+	}
+
+	lineEnding := buffer.EndingLF
+	if totalLines > 0 {
+		firstLine, _ := m.Buffer.GetLine(0)
+		lineEnding = firstLine.Ending
+	}
+
+	statusMsg := m.StatusMsg
+	if currentMode == vim.ModeInsert && (statusMsg == "" || statusMsg == "[Novo Arquivo]" || statusMsg == "[Stdin Buffer]") {
+		statusMsg = "-- INSERT --"
+	} else if currentMode == vim.ModeVisualChar && (statusMsg == "" || statusMsg == "[Novo Arquivo]" || statusMsg == "[Stdin Buffer]") {
+		statusMsg = "-- VISUAL --"
+	} else if currentMode == vim.ModeVisualLine && (statusMsg == "" || statusMsg == "[Novo Arquivo]" || statusMsg == "[Stdin Buffer]") {
+		statusMsg = "-- VISUAL LINE --"
+	} else if currentMode == vim.ModeVisualBlock && (statusMsg == "" || statusMsg == "[Novo Arquivo]" || statusMsg == "[Stdin Buffer]") {
+		statusMsg = "-- VISUAL BLOCK --"
+	}
+
+	statusState := ui.StatusState{
+		Mode:           currentMode,
+		FilePath:       m.Buffer.FilePath,
+		IsDirty:        m.Buffer.IsDirty,
+		CursorLine:     m.Buffer.Cursor.Line + 1,
+		CursorCol:      m.Buffer.Cursor.Col + 1,
+		TotalLines:     totalLines,
+		LineEnding:     lineEnding,
+		SearchMatchCur: searchCur,
+		SearchMatchTot: searchTot,
+		StatusMessage:  statusMsg,
+		CommandInput:   commandInput,
+	}
+
+	statusLine := ui.RenderStatusLine(statusState, m.Theme, m.Width)
+	cmdLine := ui.RenderCommandLine(statusState, m.Theme, m.Width)
+	cursorSeq := ui.GetCursorShapeSequence(currentMode)
+
+	return strings.Join(screenLines, "\n") + "\n" + statusLine + "\n" + cmdLine + cursorSeq
 }
