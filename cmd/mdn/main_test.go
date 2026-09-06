@@ -139,3 +139,44 @@ func TestCLI_PermissionDenied_ExitsCode1(t *testing.T) {
 		t.Fatalf("expected 'Permissão negada' on stderr, got: %q", stderr.String())
 	}
 }
+
+func TestCLI_VersionFlag(t *testing.T) {
+	for _, flag := range []string{"-v", "--version", "version"} {
+		var stdout bytes.Buffer
+		code := main.Execute(
+			[]string{"mdn", flag},
+			nil,
+			&stdout,
+			io.Discard,
+		)
+
+		if code != 0 {
+			t.Fatalf("expected exit code 0 for flag %s, got %d", flag, code)
+		}
+
+		if !strings.Contains(stdout.String(), "mdn version") {
+			t.Errorf("expected version output for flag %s, got %q", flag, stdout.String())
+		}
+	}
+}
+
+func TestCLI_HelpFlag(t *testing.T) {
+	for _, flag := range []string{"-h", "--help", "help"} {
+		var stdout bytes.Buffer
+		code := main.Execute(
+			[]string{"mdn", flag},
+			nil,
+			&stdout,
+			io.Discard,
+		)
+
+		if code != 0 {
+			t.Fatalf("expected exit code 0 for flag %s, got %d", flag, code)
+		}
+
+		if !strings.Contains(stdout.String(), "Usage:") {
+			t.Errorf("expected help output for flag %s, got %q", flag, stdout.String())
+		}
+	}
+}
+

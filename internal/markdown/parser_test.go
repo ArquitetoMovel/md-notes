@@ -40,6 +40,9 @@ func TestParser_HeadingsHierarchy(t *testing.T) {
 		if tl.Spans[0].Text != expectedMarker || tl.Spans[0].Type != TokenMarker {
 			t.Errorf("heading level %d marker mismatch: got %+v, want text %q", lvl, tl.Spans[0], expectedMarker)
 		}
+		if !tl.Spans[0].Style.GetBold() {
+			t.Errorf("heading level %d marker expected to be bold", lvl)
+		}
 
 		// Heading text span
 		expectedTitle := fmt.Sprintf("Título Nível %d", lvl)

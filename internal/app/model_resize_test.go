@@ -59,7 +59,7 @@ func TestModel_FullViewComposition(t *testing.T) {
 	}
 
 	// 2. Should contain Markdown text
-	if !strings.Contains(view, "# Título Principal") {
+	if !strings.Contains(view, "Título Principal") || !strings.Contains(view, "#") {
 		t.Errorf("view missing text content")
 	}
 

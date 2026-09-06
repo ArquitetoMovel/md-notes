@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"md-notes/internal/buffer"
+	"md-notes/internal/search"
 )
 
 // CommandResult represents the outcome of executing an Ex command.
@@ -26,6 +27,35 @@ func ExecuteExCommand(
 	cmdStr := strings.TrimSpace(input)
 	if cmdStr == "" {
 		return CommandResult{CloseMode: true}
+	}
+
+	// Check for search replace (:s or :%s)
+	if strings.HasPrefix(cmdStr, "s") || strings.HasPrefix(cmdStr, "%s") {
+		repCmd, err := search.ParseReplaceCommand(cmdStr)
+		if err != nil {
+			return CommandResult{
+				StatusMsg: err.Error(),
+				CloseMode: true,
+			}
+		}
+		curLine := 0
+		if buf != nil {
+			curLine = buf.Cursor.Line
+		}
+		count, err := search.ExecuteReplace(buf, repCmd, curLine)
+		if err != nil {
+			return CommandResult{
+				StatusMsg: err.Error(),
+				CloseMode: true,
+			}
+		}
+		if buf != nil && count > 0 {
+			buf.SetDirty(true)
+		}
+		return CommandResult{
+			StatusMsg: fmt.Sprintf("%d substituições realizadas", count),
+			CloseMode: true,
+		}
 	}
 
 	// Check for direct line number jump (e.g. ":15")

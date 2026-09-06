@@ -150,11 +150,12 @@ func (p *Parser) ParseLine(line buffer.Line, inCodeBlock *bool, codeLang *string
 			headingContent := afterHashes[spaceLen:]
 
 			headingStyle := p.getHeadingStyle(lvl)
+			headingMarkerStyle := mutedStyle.Bold(true)
 
 			spans := []StyledSpan{
 				{
 					Text:  marker,
-					Style: mutedStyle,
+					Style: headingMarkerStyle,
 					Type:  TokenMarker,
 				},
 			}

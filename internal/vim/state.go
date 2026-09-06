@@ -10,6 +10,7 @@ const (
 	ModeVisualLine
 	ModeVisualBlock
 	ModeCommand
+	ModeSearch
 )
 
 // ModeVisual is an alias for ModeVisualChar (standard characterwise visual mode).
@@ -30,6 +31,8 @@ func (m Mode) String() string {
 		return "VISUAL BLOCK"
 	case ModeCommand:
 		return "COMMAND"
+	case ModeSearch:
+		return "SEARCH"
 	default:
 		return "NORMAL"
 	}
@@ -64,9 +67,12 @@ type Register struct {
 
 // ModalState represents the exposed modal engine state for viewport and status bar rendering.
 type ModalState struct {
-	CurrentMode  Mode
-	Selection    *Selection
-	CommandInput string
-	StatusMsg    string
-	Count        int
+	CurrentMode     Mode
+	Selection       *Selection
+	CommandInput    string
+	StatusMsg       string
+	Count           int
+	SearchQuery     string
+	SearchIsReverse bool
+	SearchInitPos   Position
 }

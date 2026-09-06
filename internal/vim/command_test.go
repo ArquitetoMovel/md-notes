@@ -98,3 +98,34 @@ func TestCommand_JumpToLine(t *testing.T) {
 		t.Error("Esperado CloseMode == true")
 	}
 }
+
+func TestCommand_Replace(t *testing.T) {
+	buf := buffer.NewEmptyBuffer("teste.md")
+	buf.Lines = []buffer.Line{
+		buffer.NewLine("antigo item 1", buffer.EndingLF),
+		buffer.NewLine("antigo item 2", buffer.EndingLF),
+	}
+
+	// Global replace :%s/antigo/novo/g
+	res := ExecuteExCommand("%s/antigo/novo/g", buf, nil, nil)
+	if !strings.Contains(res.StatusMsg, "2 substituições realizadas") {
+		t.Errorf("Esperado '2 substituições realizadas', obtido '%s'", res.StatusMsg)
+	}
+	l0, _ := buf.GetLine(0)
+	l1, _ := buf.GetLine(1)
+	if l0.String() != "novo item 1" || l1.String() != "novo item 2" {
+		t.Errorf("Linhas não substituídas corretamente: '%s', '%s'", l0.String(), l1.String())
+	}
+
+	// Line replace :s/novo/renovado/g
+	buf.Cursor = buffer.Cursor{Line: 0, Col: 0}
+	res2 := ExecuteExCommand("s/novo/renovado/g", buf, nil, nil)
+	if !strings.Contains(res2.StatusMsg, "1 substituições realizadas") {
+		t.Errorf("Esperado '1 substituições realizadas', obtido '%s'", res2.StatusMsg)
+	}
+	l0After, _ := buf.GetLine(0)
+	if l0After.String() != "renovado item 1" {
+		t.Errorf("Esperado 'renovado item 1', obtido '%s'", l0After.String())
+	}
+}
+

@@ -60,6 +60,8 @@ func (l *Lexer) lexInlineRecursive(text string, state InlineStyleState, spans *[
 	if l.theme != nil {
 		mutedStyle = l.theme.Muted
 	}
+	boldMarkerStyle := mutedStyle.Bold(true)
+	italicMarkerStyle := mutedStyle.Italic(true)
 
 	i := 0
 	plainStart := 0
@@ -278,7 +280,7 @@ func (l *Lexer) lexInlineRecursive(text string, state InlineStyleState, spans *[
 
 				*spans = append(*spans, StyledSpan{
 					Text:  "**",
-					Style: mutedStyle,
+					Style: boldMarkerStyle,
 					Type:  TokenMarker,
 				})
 
@@ -290,7 +292,7 @@ func (l *Lexer) lexInlineRecursive(text string, state InlineStyleState, spans *[
 
 				*spans = append(*spans, StyledSpan{
 					Text:  "**",
-					Style: mutedStyle,
+					Style: boldMarkerStyle,
 					Type:  TokenMarker,
 				})
 
@@ -300,7 +302,38 @@ func (l *Lexer) lexInlineRecursive(text string, state InlineStyleState, spans *[
 			}
 		}
 
-		// 5. Strikethrough: ~~text~~
+		// 5. Bold: __text__
+		if i+1 < n && text[i] == '_' && text[i+1] == '_' {
+			closeIdx := strings.Index(text[i+2:], "__")
+			if closeIdx != -1 {
+				closeIdx += i + 2
+				flushPlain(i)
+
+				*spans = append(*spans, StyledSpan{
+					Text:  "__",
+					Style: boldMarkerStyle,
+					Type:  TokenMarker,
+				})
+
+				inner := text[i+2 : closeIdx]
+				subState := state
+				subState.Bold = true
+				subState.LastOpened = TokenBold
+				l.lexInlineRecursive(inner, subState, spans)
+
+				*spans = append(*spans, StyledSpan{
+					Text:  "__",
+					Style: boldMarkerStyle,
+					Type:  TokenMarker,
+				})
+
+				i = closeIdx + 2
+				plainStart = i
+				continue
+			}
+		}
+
+		// 6. Strikethrough: ~~text~~
 		if i+1 < n && text[i] == '~' && text[i+1] == '~' {
 			closeIdx := strings.Index(text[i+2:], "~~")
 			if closeIdx != -1 {
@@ -331,7 +364,7 @@ func (l *Lexer) lexInlineRecursive(text string, state InlineStyleState, spans *[
 			}
 		}
 
-		// 6. Italic: *text*
+		// 7. Italic: *text*
 		if text[i] == '*' {
 			closeIdx := strings.IndexByte(text[i+1:], '*')
 			if closeIdx != -1 {
@@ -340,7 +373,7 @@ func (l *Lexer) lexInlineRecursive(text string, state InlineStyleState, spans *[
 
 				*spans = append(*spans, StyledSpan{
 					Text:  "*",
-					Style: mutedStyle,
+					Style: italicMarkerStyle,
 					Type:  TokenMarker,
 				})
 
@@ -352,7 +385,7 @@ func (l *Lexer) lexInlineRecursive(text string, state InlineStyleState, spans *[
 
 				*spans = append(*spans, StyledSpan{
 					Text:  "*",
-					Style: mutedStyle,
+					Style: italicMarkerStyle,
 					Type:  TokenMarker,
 				})
 
@@ -362,7 +395,7 @@ func (l *Lexer) lexInlineRecursive(text string, state InlineStyleState, spans *[
 			}
 		}
 
-		// 7. Italic: _text_
+		// 8. Italic: _text_
 		if text[i] == '_' {
 			// Check if this is an emphasis delimiter and not within a snake_case_identifier
 			closeIdx := strings.IndexByte(text[i+1:], '_')
@@ -372,7 +405,7 @@ func (l *Lexer) lexInlineRecursive(text string, state InlineStyleState, spans *[
 
 				*spans = append(*spans, StyledSpan{
 					Text:  "_",
-					Style: mutedStyle,
+					Style: italicMarkerStyle,
 					Type:  TokenMarker,
 				})
 
@@ -384,7 +417,7 @@ func (l *Lexer) lexInlineRecursive(text string, state InlineStyleState, spans *[
 
 				*spans = append(*spans, StyledSpan{
 					Text:  "_",
-					Style: mutedStyle,
+					Style: italicMarkerStyle,
 					Type:  TokenMarker,
 				})
 

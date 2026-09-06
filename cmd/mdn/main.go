@@ -15,6 +15,15 @@ import (
 	"md-notes/internal/watcher"
 )
 
+var (
+	// Version is the current version, injected during build via ldflags.
+	Version = "dev"
+	// GitCommit is the git SHA, injected during build via ldflags.
+	GitCommit = "none"
+	// BuildDate is the build timestamp, injected during build via ldflags.
+	BuildDate = "unknown"
+)
+
 func openTTY() (io.Reader, io.Closer, error) {
 	ttyDevice := "/dev/tty"
 	if runtime.GOOS == "windows" {
@@ -41,6 +50,24 @@ func Execute(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer,
 		}
 	} else if stdin != nil {
 		isPipe = true
+	}
+
+	if len(args) > 1 {
+		switch args[1] {
+		case "-v", "--version", "version":
+			fmt.Fprintf(stdout, "mdn version %s (%s, %s, %s/%s)\n", Version, GitCommit, BuildDate, runtime.GOOS, runtime.GOARCH)
+			return 0
+		case "-h", "--help", "help":
+			fmt.Fprintf(stdout, "mdn - Markdown Editor & Viewer for Terminal\n\n"+
+				"Usage:\n"+
+				"  mdn [file.md]       Open or edit markdown file\n"+
+				"  mdn                 Open scratchpad buffer\n"+
+				"  cat file | mdn      Read from stdin pipe\n\n"+
+				"Flags:\n"+
+				"  -v, --version       Show version information\n"+
+				"  -h, --help          Show help information\n")
+			return 0
+		}
 	}
 
 	if isPipe {

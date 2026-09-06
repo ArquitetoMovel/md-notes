@@ -27,4 +27,10 @@ func TestCursor_ANSISequences(t *testing.T) {
 	if seq := GetRestoreCursorSequence(); seq != "\x1b[0 q" {
 		t.Errorf("Restore expected %q, got %q", "\x1b[0 q", seq)
 	}
+
+	// Position sequence (1-indexed for terminal: row=3, col=5 -> \x1b[4;6H)
+	if pos := GetCursorPositionSequence(3, 5); pos != "\x1b[4;6H" {
+		t.Errorf("Position expected %q, got %q", "\x1b[4;6H", pos)
+	}
 }
+

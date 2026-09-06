@@ -16,9 +16,15 @@ type Engine struct {
 	State         ModalState
 	pendingOp     rune
 	countAccum    int
-	SaveCallback  func(targetPath string, force bool) tea.Cmd
-	QuitCallback  func(force bool) tea.Cmd
-	insertChanged bool
+	SaveCallback          func(targetPath string, force bool) tea.Cmd
+	QuitCallback          func(force bool) tea.Cmd
+	SearchQueryCallback   func(query string, isReverse bool) tea.Cmd
+	SearchNavCallback     func(forward bool) tea.Cmd
+	SearchCancelCallback  func(initPos Position) tea.Cmd
+	SearchConfirmCallback func(query string, isReverse bool) tea.Cmd
+	insertChanged         bool
+	LastSearch            string
+	LastSearchReverse     bool
 }
 
 // NewEngine creates and initializes a new Vim Engine for the given buffer.
@@ -68,6 +74,8 @@ func (e *Engine) HandleKey(msg tea.KeyMsg) (tea.Cmd, string) {
 		return e.handleVisualKey(msg)
 	case ModeCommand:
 		return e.handleCommandKey(msg)
+	case ModeSearch:
+		return e.handleSearchKey(msg)
 	default:
 		e.State.CurrentMode = ModeNormal
 		return nil, ""
@@ -302,6 +310,44 @@ func (e *Engine) handleNormalKey(msg tea.KeyMsg) (tea.Cmd, string) {
 	case ":":
 		e.State.CurrentMode = ModeCommand
 		e.State.CommandInput = ""
+
+	case "/":
+		initPos := Position{Line: 0, Col: 0}
+		if e.Buffer != nil {
+			initPos = Position{Line: e.Buffer.Cursor.Line, Col: e.Buffer.Cursor.Col}
+		}
+		e.State.CurrentMode = ModeSearch
+		e.State.SearchQuery = ""
+		e.State.SearchIsReverse = false
+		e.State.SearchInitPos = initPos
+		e.State.CommandInput = ""
+		if e.SearchQueryCallback != nil {
+			return e.SearchQueryCallback("", false), ""
+		}
+
+	case "?":
+		initPos := Position{Line: 0, Col: 0}
+		if e.Buffer != nil {
+			initPos = Position{Line: e.Buffer.Cursor.Line, Col: e.Buffer.Cursor.Col}
+		}
+		e.State.CurrentMode = ModeSearch
+		e.State.SearchQuery = ""
+		e.State.SearchIsReverse = true
+		e.State.SearchInitPos = initPos
+		e.State.CommandInput = ""
+		if e.SearchQueryCallback != nil {
+			return e.SearchQueryCallback("", true), ""
+		}
+
+	case "n":
+		if e.SearchNavCallback != nil {
+			return e.SearchNavCallback(true), ""
+		}
+
+	case "N":
+		if e.SearchNavCallback != nil {
+			return e.SearchNavCallback(false), ""
+		}
 	}
 
 	return nil, ""
@@ -438,6 +484,83 @@ func (e *Engine) handleCommandKey(msg tea.KeyMsg) (tea.Cmd, string) {
 			e.State.CommandInput += string(msg.Runes)
 		} else if msg.String() == "space" {
 			e.State.CommandInput += " "
+		}
+		return nil, ""
+	}
+}
+
+func (e *Engine) handleSearchKey(msg tea.KeyMsg) (tea.Cmd, string) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		if e.Buffer != nil {
+			e.Buffer.Cursor.Line = e.State.SearchInitPos.Line
+			e.Buffer.Cursor.Col = e.State.SearchInitPos.Col
+			ClampCursor(e.Buffer, false)
+		}
+		e.State.CurrentMode = ModeNormal
+		e.State.SearchQuery = ""
+		e.State.CommandInput = ""
+		var cmd tea.Cmd
+		if e.SearchCancelCallback != nil {
+			cmd = e.SearchCancelCallback(e.State.SearchInitPos)
+		}
+		return cmd, ""
+
+	case tea.KeyEnter:
+		e.State.CurrentMode = ModeNormal
+		query := e.State.SearchQuery
+		isReverse := e.State.SearchIsReverse
+		if query != "" {
+			e.LastSearch = query
+			e.LastSearchReverse = isReverse
+		}
+		e.State.CommandInput = ""
+		var cmd tea.Cmd
+		if e.SearchConfirmCallback != nil {
+			cmd = e.SearchConfirmCallback(query, isReverse)
+		}
+		return cmd, ""
+
+	case tea.KeyBackspace, tea.KeyDelete:
+		runes := []rune(e.State.SearchQuery)
+		if len(runes) > 0 {
+			e.State.SearchQuery = string(runes[:len(runes)-1])
+			e.State.CommandInput = e.State.SearchQuery
+			var cmd tea.Cmd
+			if e.SearchQueryCallback != nil {
+				cmd = e.SearchQueryCallback(e.State.SearchQuery, e.State.SearchIsReverse)
+			}
+			return cmd, ""
+		}
+		if e.Buffer != nil {
+			e.Buffer.Cursor.Line = e.State.SearchInitPos.Line
+			e.Buffer.Cursor.Col = e.State.SearchInitPos.Col
+			ClampCursor(e.Buffer, false)
+		}
+		e.State.CurrentMode = ModeNormal
+		e.State.SearchQuery = ""
+		e.State.CommandInput = ""
+		var cmd tea.Cmd
+		if e.SearchCancelCallback != nil {
+			cmd = e.SearchCancelCallback(e.State.SearchInitPos)
+		}
+		return cmd, ""
+
+	default:
+		added := ""
+		if len(msg.Runes) > 0 {
+			added = string(msg.Runes)
+		} else if msg.String() == "space" {
+			added = " "
+		}
+		if added != "" {
+			e.State.SearchQuery += added
+			e.State.CommandInput = e.State.SearchQuery
+			var cmd tea.Cmd
+			if e.SearchQueryCallback != nil {
+				cmd = e.SearchQueryCallback(e.State.SearchQuery, e.State.SearchIsReverse)
+			}
+			return cmd, ""
 		}
 		return nil, ""
 	}

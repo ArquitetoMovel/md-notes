@@ -20,10 +20,11 @@ type StatusState struct {
 	CursorCol      int // 1-indexed
 	TotalLines     int
 	LineEnding     buffer.LineEnding
-	SearchMatchCur int // 1-indexed, 0 if inactive
-	SearchMatchTot int // 0 if inactive
-	StatusMessage  string
-	CommandInput   string
+	SearchMatchCur  int // 1-indexed, 0 if inactive
+	SearchMatchTot  int // 0 if inactive
+	SearchIsReverse bool
+	StatusMessage   string
+	CommandInput    string
 }
 
 // RenderStatusLine composes the primary status line using segmented Lipgloss blocks.
@@ -55,6 +56,8 @@ func RenderStatusLine(state StatusState, th *theme.CompiledTheme, width int) str
 			modeStyle = modeStyle.Background(lipgloss.Color(th.Palette.H3)).Foreground(lipgloss.Color(th.Palette.StatusBarBg))
 		case vim.ModeCommand:
 			modeStyle = modeStyle.Background(lipgloss.Color(th.Palette.H2)).Foreground(lipgloss.Color(th.Palette.StatusBarBg))
+		case vim.ModeSearch:
+			modeStyle = modeStyle.Background(lipgloss.Color(th.Palette.H5)).Foreground(lipgloss.Color(th.Palette.StatusBarBg))
 		}
 	}
 
@@ -135,6 +138,18 @@ func RenderStatusLine(state StatusState, th *theme.CompiledTheme, width int) str
 func RenderCommandLine(state StatusState, th *theme.CompiledTheme, width int) string {
 	if state.Mode == vim.ModeCommand {
 		prompt := ":" + state.CommandInput
+		if th != nil {
+			return th.StatusBar.Render(prompt)
+		}
+		return prompt
+	}
+
+	if state.Mode == vim.ModeSearch {
+		prefix := "/"
+		if state.SearchIsReverse {
+			prefix = "?"
+		}
+		prompt := prefix + state.CommandInput
 		if th != nil {
 			return th.StatusBar.Render(prompt)
 		}

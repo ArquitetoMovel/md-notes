@@ -2,11 +2,11 @@
 
 ## 1. Executive Summary
 
-O **md-notes** é um editor de Markdown nativo para terminal (TUI - Terminal User Interface) projetado para oferecer agilidade e praticidade extrema no fluxo de trabalho de desenvolvedores e profissionais técnicos. Criado para quem já opera no terminal em conjunto com assistentes de IA (como Antigravity CLI, Codex, Claude Code e Aider), o produto elimina a lentidão e o atrito de alternar para editores gráficos pesados ou ferramentas web apenas para inspecionar, revisar ou redigir documentos Markdown.
+O **md-notes** é um editor de Markdown nativo para terminal (TUI - Terminal User Interface) projetado para oferecer agilidade e praticidade extrema no fluxo de trabalho de desenvolvedores e profissionais técnicos. Criado para quem já opera no terminal em conjunto com assistentes de IA (como Antigravity CLI, Codex, Claude Code e Aider), o produto elimina a lentidão e o atrito de alternar para editores gráficos pesados ou ferramentas web apenas para inspecionar, revisar ou redigir documentos _Markdown_.
 
 O público-alvo principal são desenvolvedores de software, engenheiros de DevOps/SRE e criadores de documentação técnica que prezam por ergonomia de teclado, resposta instantânea e estética refinada na linha de comando. O diferencial central reside na combinação de uma experiência modal inspirada no padrão Vim (`i`, `v`, `/`, `:w`, `:wq`) com um motor de renderização e destaque de sintaxe em tempo real, permitindo visualizar títulos estilizados, ênfases (negrito/itálico), tabelas perfeitamente alinhadas e blocos de código formatados sem ocultar as marcações Markdown originais.
 
-Construído em Go com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compila para um binário nativo único e independente, com suporte multiplataforma (macOS, Linux e Windows), inicialização em menos de 50 milissegundos, consumo mínimo de memória (< 25 MB) e suporte total a arquivos de configuração TOML com paletas de cores modernas (Dracula, Nord, Catppuccin, Monokai e temas customizados).
+Construído em *Go* com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compila para um binário nativo único e independente, com suporte multiplataforma (macOS, Linux e Windows), inicialização em menos de 50 milissegundos, consumo mínimo de memória (< 25 MB) e suporte total a arquivos de configuração TOML com paletas de cores modernas (Dracula, Nord, Catppuccin, Monokai e temas customizados).
 
 ## 2. Problem and Opportunity
 
@@ -174,10 +174,10 @@ Construído em Go com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compila
 - F01: Buffer state (caminho do arquivo, linhas de texto brutas, flag de modificação, posição do cursor)
 
 **Provides:**
-- Modal state contendo modo ativo (NORMAL, INSERT, VISUAL, COMMAND), seleção visual ativa, pilha de Undo/Redo, comando em digitação e padrão de busca (used by F06, F07)
+- Modal state contendo modo ativo (NORMAL, INSERT, VISUAL, COMMAND, SEARCH), seleção visual ativa, pilha de Undo/Redo, comando em digitação e padrão de busca (used by F06, F07)
 
 **Core Scope:**
-- Modos de operação: Normal, Insert, Visual (por caractere `v` e por linha `V`), Command-line (`:`)
+- Modos de operação: Normal, Insert, Visual (por caractere `v` e por linha `V`), Command-line (`:`), Search (`/` e `?`)
 - Movimentação no modo Normal: `h` (esquerda), `j` (baixo), `k` (cima), `l` (direita), `w` (próxima palavra), `b` (palavra anterior), `0` (início da linha), `$` (fim da linha), `gg` (início do documento), `G` (fim do documento)
 - Comandos de entrada no modo Insert: `i` (antes do cursor), `a` (após o cursor), `I` (início da linha), `A` (fim da linha), `o` (nova linha abaixo), `O` (nova linha acima), `Esc` (retorno ao Normal)
 - Operações de edição e deleção: `x` (apagar caractere), `dd` (apagar linha inteira), `dw` (apagar palavra), `yy` (copiar linha), `yw` (copiar palavra), `p` (colar após cursor), `P` (colar antes do cursor)

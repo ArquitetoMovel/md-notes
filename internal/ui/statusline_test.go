@@ -134,3 +134,34 @@ func TestStatusLine_DynamicTheme(t *testing.T) {
 		t.Errorf("command line missing error message: %s", cmdLine)
 	}
 }
+
+func TestStatusLine_SearchModeCommandLine(t *testing.T) {
+	stateForward := StatusState{
+		Mode:            vim.ModeSearch,
+		CommandInput:    "pesquisa",
+		SearchIsReverse: false,
+	}
+	outForward := RenderCommandLine(stateForward, nil, 80)
+	if !strings.Contains(outForward, "/pesquisa") {
+		t.Errorf("Esperado '/pesquisa', obtido: '%s'", outForward)
+	}
+
+	stateReverse := StatusState{
+		Mode:            vim.ModeSearch,
+		CommandInput:    "reverso",
+		SearchIsReverse: true,
+	}
+	outReverse := RenderCommandLine(stateReverse, nil, 80)
+	if !strings.Contains(outReverse, "?reverso") {
+		t.Errorf("Esperado '?reverso', obtido: '%s'", outReverse)
+	}
+
+	// Status line mode block
+	pal, _ := theme.GetPalette("default-dark")
+	th := theme.CompileTheme(pal, theme.ColorOverrides{})
+	sl := RenderStatusLine(stateForward, th, 80)
+	if !strings.Contains(sl, "SEARCH") {
+		t.Errorf("Status line esperada conter 'SEARCH', obtido: '%s'", sl)
+	}
+}
+

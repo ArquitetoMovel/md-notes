@@ -300,3 +300,154 @@ func TestEngine_VisualSelection(t *testing.T) {
 		t.Errorf("Esperado 'ha 1' após deleção visual, obtido '%s'", line0.String())
 	}
 }
+
+// Testes de Modo de Busca (F06)
+func TestEngine_SearchMode_ForwardAndBackward(t *testing.T) {
+	buf := buffer.NewEmptyBuffer("teste.md")
+	buf.Lines = []buffer.Line{
+		buffer.NewLine("Primeira linha", buffer.EndingLF),
+		buffer.NewLine("Segunda linha", buffer.EndingLF),
+	}
+	buf.Cursor = buffer.Cursor{Line: 1, Col: 4}
+	engine := NewEngine(buf)
+
+	// Test '/' enters ModeSearch forward
+	engine.HandleKey(makeKey("/"))
+	if engine.State.CurrentMode != ModeSearch {
+		t.Fatalf("Esperado ModeSearch, obtido %s", engine.State.CurrentMode)
+	}
+	if engine.State.SearchIsReverse {
+		t.Errorf("Esperado SearchIsReverse false para '/', obtido true")
+	}
+	if engine.State.SearchInitPos.Line != 1 || engine.State.SearchInitPos.Col != 4 {
+		t.Errorf("Esperado SearchInitPos (1, 4), obtido (%d, %d)", engine.State.SearchInitPos.Line, engine.State.SearchInitPos.Col)
+	}
+
+	// Exit with esc
+	engine.HandleKey(makeKey("esc"))
+	if engine.State.CurrentMode != ModeNormal {
+		t.Fatalf("Esperado retorno para ModeNormal, obtido %s", engine.State.CurrentMode)
+	}
+
+	// Test '?' enters ModeSearch reverse
+	engine.HandleKey(makeKey("?"))
+	if engine.State.CurrentMode != ModeSearch {
+		t.Fatalf("Esperado ModeSearch para '?', obtido %s", engine.State.CurrentMode)
+	}
+	if !engine.State.SearchIsReverse {
+		t.Errorf("Esperado SearchIsReverse true para '?', obtido false")
+	}
+}
+
+func TestEngine_SearchMode_TypingAndBackspace(t *testing.T) {
+	buf := buffer.NewEmptyBuffer("teste.md")
+	engine := NewEngine(buf)
+
+	var lastQuery string
+	engine.SearchQueryCallback = func(query string, isReverse bool) tea.Cmd {
+		lastQuery = query
+		return nil
+	}
+
+	engine.HandleKey(makeKey("/"))
+	for _, ch := range "markdown" {
+		engine.HandleKey(makeKey(string(ch)))
+	}
+
+	if engine.State.SearchQuery != "markdown" {
+		t.Errorf("Esperado SearchQuery 'markdown', obtido '%s'", engine.State.SearchQuery)
+	}
+	if lastQuery != "markdown" {
+		t.Errorf("Esperado callback com 'markdown', obtido '%s'", lastQuery)
+	}
+
+	// Backspace once
+	engine.HandleKey(makeKey("backspace"))
+	if engine.State.SearchQuery != "markdow" {
+		t.Errorf("Esperado 'markdow' após backspace, obtido '%s'", engine.State.SearchQuery)
+	}
+}
+
+func TestEngine_SearchMode_EscCancelRollback(t *testing.T) {
+	buf := buffer.NewEmptyBuffer("teste.md")
+	buf.Lines = []buffer.Line{
+		buffer.NewLine("Linha 0", buffer.EndingLF),
+		buffer.NewLine("Linha 1", buffer.EndingLF),
+	}
+	buf.Cursor = buffer.Cursor{Line: 0, Col: 2}
+	engine := NewEngine(buf)
+
+	cancelCalled := false
+	engine.SearchCancelCallback = func(initPos Position) tea.Cmd {
+		cancelCalled = true
+		return nil
+	}
+
+	engine.HandleKey(makeKey("/"))
+	// Simulate cursor moved by live search
+	buf.Cursor = buffer.Cursor{Line: 1, Col: 5}
+
+	engine.HandleKey(makeKey("esc"))
+
+	if engine.State.CurrentMode != ModeNormal {
+		t.Errorf("Esperado ModeNormal após esc, obtido %s", engine.State.CurrentMode)
+	}
+	if buf.Cursor.Line != 0 || buf.Cursor.Col != 2 {
+		t.Errorf("Esperado cursor restaurado para (0, 2), obtido (%d, %d)", buf.Cursor.Line, buf.Cursor.Col)
+	}
+	if !cancelCalled {
+		t.Errorf("Esperado SearchCancelCallback ter sido chamado")
+	}
+}
+
+func TestEngine_SearchMode_EnterConfirm(t *testing.T) {
+	buf := buffer.NewEmptyBuffer("teste.md")
+	engine := NewEngine(buf)
+
+	confirmedQuery := ""
+	engine.SearchConfirmCallback = func(query string, isReverse bool) tea.Cmd {
+		confirmedQuery = query
+		return nil
+	}
+
+	engine.HandleKey(makeKey("/"))
+	for _, ch := range "busca" {
+		engine.HandleKey(makeKey(string(ch)))
+	}
+	engine.HandleKey(makeKey("enter"))
+
+	if engine.State.CurrentMode != ModeNormal {
+		t.Errorf("Esperado ModeNormal após enter, obtido %s", engine.State.CurrentMode)
+	}
+	if confirmedQuery != "busca" {
+		t.Errorf("Esperado confirmedQuery 'busca', obtido '%s'", confirmedQuery)
+	}
+	if engine.LastSearch != "busca" {
+		t.Errorf("Esperado LastSearch 'busca', obtido '%s'", engine.LastSearch)
+	}
+}
+
+func TestEngine_SearchMode_NavigationKeys(t *testing.T) {
+	buf := buffer.NewEmptyBuffer("teste.md")
+	engine := NewEngine(buf)
+
+	navDirection := ""
+	engine.SearchNavCallback = func(forward bool) tea.Cmd {
+		if forward {
+			navDirection = "forward"
+		} else {
+			navDirection = "backward"
+		}
+		return nil
+	}
+
+	engine.HandleKey(makeKey("n"))
+	if navDirection != "forward" {
+		t.Errorf("Esperado navDirection 'forward' para 'n', obtido '%s'", navDirection)
+	}
+
+	engine.HandleKey(makeKey("N"))
+	if navDirection != "backward" {
+		t.Errorf("Esperado navDirection 'backward' para 'N', obtido '%s'", navDirection)
+	}
+}

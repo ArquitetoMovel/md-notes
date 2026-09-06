@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+
 	"md-notes/internal/vim"
 )
 
@@ -19,7 +21,7 @@ func GetCursorShapeSequence(mode vim.Mode) string {
 		return CursorBeam
 	case vim.ModeVisual, vim.ModeVisualLine, vim.ModeVisualBlock:
 		return CursorUnderline
-	case vim.ModeNormal, vim.ModeCommand:
+	case vim.ModeNormal, vim.ModeCommand, vim.ModeSearch:
 		fallthrough
 	default:
 		return CursorBlock
@@ -30,3 +32,15 @@ func GetCursorShapeSequence(mode vim.Mode) string {
 func GetRestoreCursorSequence() string {
 	return CursorRestore
 }
+
+// GetCursorPositionSequence returns the ANSI escape sequence to move the terminal hardware cursor to (screenY, screenX) (0-indexed).
+func GetCursorPositionSequence(screenY, screenX int) string {
+	if screenY < 0 {
+		screenY = 0
+	}
+	if screenX < 0 {
+		screenX = 0
+	}
+	return fmt.Sprintf("\x1b[%d;%dH", screenY+1, screenX+1)
+}
+

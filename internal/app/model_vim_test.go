@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"md-notes/internal/app"
 	"md-notes/internal/buffer"
+	"md-notes/internal/markdown"
 	"md-notes/internal/vim"
 )
 
@@ -110,3 +111,77 @@ func TestApp_VimCommandMode_UnknownCommand_E492(t *testing.T) {
 		t.Errorf("StatusMsg esperado com erro E492, obtido: %q", m.StatusMsg)
 	}
 }
+
+// Test cursor highlight during Vim navigation (h, j, k, l)
+func TestApp_VimNavigation_CursorHighlighted(t *testing.T) {
+	buf := buffer.NewEmptyBuffer("navegacao.md")
+	buf.InsertText("Linha 1\nLinha 2\n")
+	buf.Cursor = buffer.Cursor{Line: 0, Col: 0}
+
+	m := app.NewModel(buf, nil)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	// Initial position (Line 0, Col 0) -> status indicates Ln 1, Col 1 and shape sequence \x1b[2 q
+	view0 := m.View()
+	if !strings.Contains(view0, "Ln 1, Col 1") {
+		t.Errorf("view missing status pos 'Ln 1, Col 1', got:\n%s", view0)
+	}
+	if !strings.Contains(view0, "\x1b[2 q") {
+		t.Errorf("view missing normal mode block cursor shape sequence, got:\n%s", view0)
+	}
+
+	// Move right with 'l'
+	m.Update(makeKeyMsg("l"))
+	if buf.Cursor.Col != 1 {
+		t.Fatalf("expected cursor Col 1, got %d", buf.Cursor.Col)
+	}
+	view1 := m.View()
+	if !strings.Contains(view1, "Ln 1, Col 2") {
+		t.Errorf("view missing status pos 'Ln 1, Col 2', got:\n%s", view1)
+	}
+
+	// Move down with 'j'
+	m.Update(makeKeyMsg("j"))
+	if buf.Cursor.Line != 1 {
+		t.Fatalf("expected cursor Line 1, got %d", buf.Cursor.Line)
+	}
+	view2 := m.View()
+	if !strings.Contains(view2, "Ln 2, Col 2") {
+		t.Errorf("view missing status pos 'Ln 2, Col 2', got:\n%s", view2)
+	}
+}
+
+// Test markdown headings pre-formatting in View()
+func TestApp_MarkdownHeadings_Formatted(t *testing.T) {
+	buf := buffer.NewEmptyBuffer("headings.md")
+	buf.InsertText("# Título H1\n## Subtítulo H2\nTexto normal\n")
+
+	m := app.NewModel(buf, nil)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	view := m.View()
+
+	// Should contain the title text
+	if !strings.Contains(view, "Título H1") {
+		t.Errorf("view missing 'Título H1'")
+	}
+	if !strings.Contains(view, "Subtítulo H2") {
+		t.Errorf("view missing 'Subtítulo H2'")
+	}
+	if !strings.Contains(view, "Texto normal") {
+		t.Errorf("view missing 'Texto normal'")
+	}
+
+	// Verify that the markdown parser parsed the headings
+	orig0, _ := buf.GetLine(0)
+	var inCode bool
+	var lang string
+	tl := m.MarkdownParser.ParseLine(orig0, &inCode, &lang)
+	if !tl.IsHeading || tl.HeadingLvl != 1 {
+		t.Errorf("expected parsed line 0 to be Heading level 1")
+	}
+	if len(tl.Spans) < 2 || tl.Spans[0].Type != markdown.TokenMarker || tl.Spans[1].Type != markdown.TokenHeading {
+		t.Errorf("expected marker and heading spans, got: %+v", tl.Spans)
+	}
+}
+

@@ -229,3 +229,45 @@ func TestLexer_NestedStyles(t *testing.T) {
 		t.Errorf("span 10 mismatch: %+v", spans[10])
 	}
 }
+
+func TestLexer_MarkerStyles_BoldAndItalic(t *testing.T) {
+	th := getTestTheme()
+	lexer := NewLexer(th)
+
+	// Test bold **
+	spansBoldAsterisk := lexer.TokenizeInline("**negrito**", lipgloss.NewStyle())
+	if len(spansBoldAsterisk) != 3 {
+		t.Fatalf("expected 3 spans for **negrito**, got %d", len(spansBoldAsterisk))
+	}
+	if !spansBoldAsterisk[0].Style.GetBold() || !spansBoldAsterisk[2].Style.GetBold() {
+		t.Errorf("expected ** markers to be bold")
+	}
+
+	// Test bold __
+	spansBoldUnderscore := lexer.TokenizeInline("__negrito__", lipgloss.NewStyle())
+	if len(spansBoldUnderscore) != 3 {
+		t.Fatalf("expected 3 spans for __negrito__, got %d", len(spansBoldUnderscore))
+	}
+	if !spansBoldUnderscore[0].Style.GetBold() || !spansBoldUnderscore[2].Style.GetBold() {
+		t.Errorf("expected __ markers to be bold")
+	}
+
+	// Test italic *
+	spansItalicAsterisk := lexer.TokenizeInline("*italico*", lipgloss.NewStyle())
+	if len(spansItalicAsterisk) != 3 {
+		t.Fatalf("expected 3 spans for *italico*, got %d", len(spansItalicAsterisk))
+	}
+	if !spansItalicAsterisk[0].Style.GetItalic() || !spansItalicAsterisk[2].Style.GetItalic() {
+		t.Errorf("expected * markers to be italic")
+	}
+
+	// Test italic _
+	spansItalicUnderscore := lexer.TokenizeInline("_italico_", lipgloss.NewStyle())
+	if len(spansItalicUnderscore) != 3 {
+		t.Fatalf("expected 3 spans for _italico_, got %d", len(spansItalicUnderscore))
+	}
+	if !spansItalicUnderscore[0].Style.GetItalic() || !spansItalicUnderscore[2].Style.GetItalic() {
+		t.Errorf("expected _ markers to be italic")
+	}
+}
+

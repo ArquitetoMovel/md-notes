@@ -30,6 +30,8 @@ type CompiledTheme struct {
 	GutterCurrent  lipgloss.Style
 	ScrollbarTrack lipgloss.Style
 	ScrollbarThumb lipgloss.Style
+	Cursor         lipgloss.Style
+	Selection      lipgloss.Style
 }
 
 func applyOverrides(p Palette, overrides ColorOverrides) Palette {
@@ -116,5 +118,7 @@ func CompileTheme(palette Palette, overrides ColorOverrides) *CompiledTheme {
 		GutterCurrent:  lipgloss.NewStyle().Foreground(lipgloss.Color(p.H1)).Bold(true),
 		ScrollbarTrack: lipgloss.NewStyle().Foreground(lipgloss.Color(p.Muted)),
 		ScrollbarThumb: lipgloss.NewStyle().Foreground(lipgloss.Color(p.TableBorder)),
+		Cursor:         lipgloss.NewStyle().Reverse(true),
+		Selection:      lipgloss.NewStyle().Background(lipgloss.Color(p.Muted)).Foreground(lipgloss.Color(p.CodeFg)),
 	}
 }
