@@ -3,7 +3,7 @@
   "version": "1.0",
   "lang": "pt-BR",
   "prdPath": "docs/PRD.md",
-  "updatedAt": "2026-09-01T02:56:30Z",
+  "updatedAt": "2026-09-06T20:22:00Z",
   "features": [
     {
       "id": "F01",
@@ -74,6 +74,16 @@
       "specPath": ".sdd-builder/F07-tui-viewport-status-line-renderer",
       "updatedAt": "2026-09-01T02:56:30Z",
       "note": ""
+    },
+    {
+      "id": "F08",
+      "name": "Interactive Configuration Panel & Settings UI",
+      "status": "todo",
+      "wave": 5,
+      "priority": 2,
+      "specPath": "",
+      "updatedAt": "2026-09-06T20:22:00Z",
+      "note": ""
     }
   ],
   "decisions": [
@@ -106,7 +116,12 @@
       "id": "D06",
       "title": "CLI & Input Support",
       "decision": "Suporte a abertura de arquivo ('mdn doc.md'), buffer scratchpad ('mdn') e stdin pipe ('cat doc.md | mdn')"
+    },
+    {
+      "id": "D07",
+      "title": "Interactive Configuration Panel",
+      "decision": "Painel modal em popup centralizado acionado por comandos :c e :config para ajuste interativo de temas e preferências com persistência direta no config.toml"
     }
   ],
-  "notes": "This repository has no agent-facing documentation (AGENTS.md / README.md). Generating them significantly improves every later step of this flow — spec quality, stack detection and implementation all depend on them. Consider creating them."
+  "notes": ""
 }

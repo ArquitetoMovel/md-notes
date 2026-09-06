@@ -101,6 +101,13 @@ Construído em *Go* com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compi
 - As a user, I want smooth vertical and horizontal viewport scrolling with customizable line numbering.
 - As a user, I want the editor layout to respond dynamically to terminal resize events without visual glitches.
 
+### F08. Interactive Configuration Panel & Settings UI
+- As a user, I want to execute `:c` or `:config` in Normal mode so that a centered popup configuration modal opens over the editor.
+- As a user, I want to navigate through theme choices using `j`/`k` or arrow keys and see real-time preview of the selected theme in the viewport.
+- As a user, I want to toggle editor preferences (tab size, line numbers, relative numbers, scrolloff, word wrap) directly in the popup interface.
+- As a user, I want to press `Enter` to atomically save my modified configuration to `config.toml` on disk and immediately apply it to the active editor session.
+- As a user, I want to press `Esc` or `q` to dismiss the configuration panel, discarding unsaved changes and reverting to the original configuration.
+
 ## 6. Functionalities
 
 ### F01. CLI Entrypoint & File Buffer Manager
@@ -142,7 +149,7 @@ Construído em *Go* com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compi
 ### F02. Configuration & Theme Engine
 
 **Provides:**
-- Theme styling definitions e configurações ativas de exibição (cores H1-H6, marcadores atenuados, negrito, itálico, bordas de tabela, cursor, linha de status) (used by F04, F05, F06, F07)
+- Theme styling definitions e configurações ativas de exibição (cores H1-H6, marcadores atenuados, negrito, itálico, bordas de tabela, cursor, linha de status) (used by F04, F05, F06, F07, F08)
 
 **Core Scope:**
 - Carregamento de arquivo TOML de configuração em diretórios padrão XDG (`~/.config/md-notes/config.toml` no Linux/macOS e `%APPDATA%\md-notes\config.toml` no Windows)
@@ -174,7 +181,7 @@ Construído em *Go* com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compi
 - F01: Buffer state (caminho do arquivo, linhas de texto brutas, flag de modificação, posição do cursor)
 
 **Provides:**
-- Modal state contendo modo ativo (NORMAL, INSERT, VISUAL, COMMAND, SEARCH), seleção visual ativa, pilha de Undo/Redo, comando em digitação e padrão de busca (used by F06, F07)
+- Modal state contendo modo ativo (NORMAL, INSERT, VISUAL, COMMAND, SEARCH), seleção visual ativa, pilha de Undo/Redo, comando em digitação e padrão de busca (used by F06, F07, F08)
 
 **Core Scope:**
 - Modos de operação: Normal, Insert, Visual (por caractere `v` e por linha `V`), Command-line (`:`), Search (`/` e `?`)
@@ -363,6 +370,47 @@ Construído em *Go* com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compi
 - Conforme o usuário digita ou navega com `j`/`k`, o número da linha atual é iluminado, o percentual do documento é atualizado no rodapé e o cursor na tela acompanha com precisão a célula do caractere correspondente.
 - Se o usuário redimensionar a janela do terminal, o viewport se adapta imediatamente recalculando a quebra de linha visual e a extensão da barra de status.
 
+---
+
+### F08. Interactive Configuration Panel & Settings UI
+
+**Consumes:**
+- F02: Theme styling definitions e configurações ativas de exibição (`Config` e `CompiledTheme`)
+- F03: Modal state (comando de invocação `:c`/`:config` e captura modal de teclado)
+- F07: Dimensões da janela do terminal e viewport para centralização do modal
+
+**Core Scope:**
+- Abertura de modal popup centralizado via comandos `:c` e `:config` a partir do modo Normal
+- Navegação por teclado: teclas de seta ou `j`/`k` para mover entre configurações e `Tab`/`Shift+Tab` entre abas/seções (`[Tema]` e `[Editor]`)
+- Seleção e alternância de temas embutidos (`dracula`, `nord`, `catppuccin-mocha`, `catppuccin-macchiato`, `monokai`, `default-dark`, `default-light`)
+- Ajuste de preferências do editor: alternância de numeração de linhas (`line_numbers`), numeração relativa (`relative_line_numbers`), tamanho de tabulação (`tab_size`: 2, 4, 8), `scrolloff` e quebra de linha (`word_wrap`)
+- Gravação atômica direta no arquivo `config.toml` em diretórios XDG/AppData ao confirmar com `Enter`
+- Fechamento imediato com descarte de alterações não salvas ao pressionar `Esc` ou `q`
+- Renderização de caixa de diálogo com bordas Lipgloss, título e indicador de atalhos de rodapé
+
+**Full Scope additions:**
+- Live preview dinâmico do tema no viewport de fundo conforme o cursor navega pela lista de temas
+- Edição interativa de substituições de cores Hex (`#RRGGBB`) para tokens de syntax highlighting
+- Atalho de teclado rápido global (ex: `F2`) para invocação direta do painel
+
+**Capabilities:**
+- Dimensão do popup: largura entre 50 e 60 colunas, altura entre 14 e 18 linhas, perfeitamente centralizado em terminais de pelo menos 80x24
+- Gravação atômica e recarregamento de configuração em menos de 10 ms
+- Bloqueio de propagação de eventos de teclado para o buffer de texto enquanto o modal estiver visível
+
+**Experience:**
+- No modo Normal, o usuário digita `:c` ou `:config` e pressiona `Enter`.
+- O editor suspende a edição do documento e exibe uma caixa modal centralizada com título `Configurações` estilizada com as cores do tema ativo.
+- A caixa contém duas seções acessíveis por `Tab` ou setas laterais: `[1. Temas]` e `[2. Editor]`.
+- Na seção `Temas`, uma lista de radio options permite selecionar o tema desejado usando `j`/`k` e `Enter`/`Espaço`.
+- Na seção `Editor`, opções como `Numeração de Linhas`, `Numeração Relativa`, `Tamanho do Tab` e `Word Wrap` são alternadas com `Espaço` ou setas horizontais.
+- Ao pressionar `Enter` na opção `[Salvar e Fechar]`, as preferências são gravadas em `config.toml`, o modal se fecha e uma mensagem de confirmação aparece na barra de status: `Configurações salvas em config.toml`.
+- Ao pressionar `Esc` ou `q`, o modal se fecha sem salvar e qualquer alteração temporária é revertida.
+
+**Error Handling:**
+- **Falha de permissão ao gravar config.toml:** Se o arquivo de configuração estiver em diretório protegido contra escrita ou disco cheio, exibe alerta vermelho dentro do modal: `Erro ao gravar config.toml: Permissão negada` sem fechar o diálogo.
+- **Janela de terminal insuficiente:** Se as dimensões do terminal forem inferiores a 50x14, o comando `:c`/`:config` emite mensagem na barra de status: `Dimensão insuficiente (mínimo 50x14) para abrir o painel de configurações`.
+
 ## 7. Out of Scope
 
 - **Renderização de imagens gráficas inline:** Exibição de bitmaps, PNGs ou gráficos via protocolos Sixel / Kitty Graphics não faz parte da versão 1.0 (apenas a sintaxe `![alt](url)` será destacada textualmente).
@@ -370,6 +418,7 @@ Construído em *Go* com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compi
 - **Sistema de plugins / scripting em Lua / Python:** O produto não incluirá uma API de extensões ou interpretador embutido na v1.0, mantendo o binário estritamente leve e focado.
 - **Servidor de colaboração em tempo real:** Edição multiusuário remota simultânea via WebSockets ou CRDTs está fora do escopo.
 - **Gerenciador de múltiplos buffers com abas ou árvore de arquivos (File Tree):** O editor focará na experiência direta de arquivo único / scratchpad / pipe de terminal por sessão.
+- **Download e instalação remota de temas via rede:** O painel de configurações gerencia exclusivamente temas embutidos e parâmetros locais do arquivo `config.toml`; não haverá catálogo online ou marketplace de temas na v1.0.
 
 ## 8. Dependency Graph
 
@@ -384,6 +433,7 @@ Construído em *Go* com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compi
 | F05 | Dynamic Markdown Table Engine | 2 | F01, F02, F04 |
 | F06 | Interactive Search & Replace System | 2 | F01, F02, F03 |
 | F07 | TUI Viewport & Status Line Renderer | 1 | F01, F02, F03, F04, F05, F06 |
+| F08 | Interactive Configuration Panel & Settings UI | 2 | F02, F03, F07 |
 
 ### Part 2: Foundation Features
 These features set up shared project infrastructure. In a greenfield project they must be implemented sequentially before or alongside any feature that depends on them:
@@ -399,6 +449,7 @@ Features within the same wave can be built in parallel. A wave starts only after
 - **Wave 2**: F03, F04
 - **Wave 3**: F05, F06
 - **Wave 4**: F07
+- **Wave 5**: F08
 
 ### Part 4: Priority levels
 - **1** = Essential — product does not work without it
@@ -424,6 +475,9 @@ graph TD
   F04 --> F07
   F05 --> F07
   F06 --> F07
+  F02 --> F08[Config Panel]
+  F03 --> F08
+  F07 --> F08
 ```
 
 ## 9. Acceptance Criteria
@@ -484,6 +538,16 @@ graph TD
 - [ ] A linha inferior renderiza prompts de comando `:` e busca `/` com cursor de entrada responsivo.
 - [ ] Redimensionar a janela do terminal ajusta as dimensões do viewport e barra de status sem travamentos ou quebras visuais.
 
+### F08. Interactive Configuration Panel & Settings UI
+- [ ] O comando `:c` ou `:config` executado no modo Normal abre o popup de configurações centralizado na tela.
+- [ ] O popup renderiza opções organizadas para alternância de tema e parâmetros do editor (`tab_size`, `line_numbers`, `relative_line_numbers`, `scrolloff`, `word_wrap`).
+- [ ] As teclas de navegação (`j`/`k` ou setas cima/baixo) movem a seleção entre os itens configuráveis do painel.
+- [ ] A navegação pelos temas exibe a lista dos 7 temas incorporados e reflete o tema ativo no editor.
+- [ ] Pressionar `Enter` na confirmação grava as configurações alteradas no arquivo `config.toml` de forma atômica e fecha o modal.
+- [ ] Pressionar `Esc` ou `q` fecha o painel de configurações imediatamente sem persistir alterações.
+- [ ] Em caso de erro de gravação de arquivo no disco, o painel exibe aviso de falha na interface sem travar a sessão.
+- [ ] Em terminais com dimensões menores que 50x14, o editor recusa abrir o modal e emite alerta informativo na linha de status.
+
 ### Cross-Feature Integration
 - [ ] O Buffer State gerenciado por F01 fornece dados íntegros para a edição modal (F03), parsing de markdown (F04), tabelas (F05), busca (F06) e viewport (F07).
 - [ ] As definições de estilo do Theme Engine (F02) são consumidas e aplicadas uniformemente pelo parser de markdown (F04), tabelas (F05), destaques de busca (F06) e barra de status (F07).
@@ -491,3 +555,7 @@ graph TD
 - [ ] As linhas tokenizadas pelo parser de markdown (F04) são consumidas pelo Dynamic Table Engine (F05) e renderizadas com precisão pelo Viewport (F07).
 - [ ] Os blocos de tabela formatados por F05 são integrados ao fluxo de renderização do Viewport (F07).
 - [ ] As ocorrências destacadas pelo sistema de busca (F06) são sobrepostas com precisão às linhas renderizadas no Viewport (F07).
+- [ ] O comando `:c`/`:config` disparado pelo Modal Editing Engine (F03) inicializa o estado do Interactive Configuration Panel (F08) e direciona temporariamente a captura de teclas ao modal.
+- [ ] As opções e paletas gerenciadas pelo Configuration & Theme Engine (F02) são consumidas e manipuladas pela interface do Configuration Panel (F08).
+- [ ] A gravação de novas preferências em F08 persiste o arquivo TOML e notifica F02 e F07 para recarregamento e reaplicação imediata de estilos e layouts.
+- [ ] O TUI Viewport (F07) centraliza e renderiza a camada visual de sobreposição de F08 mantendo o documento de fundo íntegro.
