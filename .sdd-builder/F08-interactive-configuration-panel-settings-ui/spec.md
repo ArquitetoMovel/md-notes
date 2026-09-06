@@ -251,12 +251,15 @@ const (
 |---|---|
 | `Tab` / `Shift+Tab` | Navega ciclicamente entre as abas `[1. Temas]`, `[2. Editor]` e `[3. Cores]` |
 | `h` / `l` ou `Left` / `Right` | Move o foco para a aba anterior / seguinte |
-| `j` / `k` ou `Down` / `Up` | Move a seleção vertical entre os itens ou opções da aba atual |
+| `j` / `k` ou `Down` / `Up` | Move a seleção vertical entre os itens; ao atingir o final da lista, `j`/`Down` posiciona o foco em `[Salvar e Fechar]` |
+| `s` (fora de edição Hex) | Move o foco diretamente para o botão `[Salvar e Fechar]` |
 | `Espaço` ou `Enter` | Ativa a opção selecionada: seleciona tema, inverte checkbox booleano ou avança tab_size |
 | `e` (na aba Cores) | Inicia o modo de edição inline do código hexadecimal para o token selecionado |
 | `Enter` (em edição Hex) | Valida e aplica a nova cor hexadecimal (`#RRGGBB`); emite aviso se inválida |
 | `Esc` (em edição Hex) | Cancela a edição do campo de cor atual sem aplicar |
 | `Enter` (em `[Salvar e Fechar]`) | Grava atomicamente no `config.toml`, fecha o modal e exibe confirmação no rodapé |
+| `Cmd+S` (`⌘S`) / `Super+S` | Atalho direto no macOS para gravar e fechar imediatamente de qualquer aba |
+| `Ctrl+S` | Atalho direto multiplataforma (Linux/Windows/macOS) para gravar e fechar imediatamente |
 | `Esc` ou `q` (fora de edição Hex) | Fecha o modal imediatamente, desfaz alterações em memória e restaura o snapshot |
 
 ### Mensagens de Status e Alertas

@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"regexp"
+	"runtime"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -270,8 +271,8 @@ func (s *SettingsState) HandleKey(msg tea.KeyMsg) SettingsAction {
 		return ActionCancelAndClose
 	}
 
-	// Direct shortcut to save
-	if keyStr == "ctrl+s" || msg.Type == tea.KeyCtrlS {
+	// Direct shortcut to save: Ctrl+S, Cmd+S (⌘S), Super+S
+	if keyStr == "ctrl+s" || keyStr == "cmd+s" || keyStr == "super+s" || keyStr == "⌘s" || msg.Type == tea.KeyCtrlS {
 		return ActionSaveAndClose
 	}
 
@@ -815,7 +816,11 @@ func RenderSettingsModal(state *SettingsState, th *theme.CompiledTheme, width, h
 		Foreground(lipgloss.Color(mutedColor)).
 		Width(innerWidth).
 		Align(lipgloss.Center)
-	footerLine := footerStyle.Render("Tab: Abas • j/k: Mover/Salvar • Enter: Confirmar • Ctrl+S: Salvar • Esc: Sair")
+	saveKey := "Ctrl+S"
+	if runtime.GOOS == "darwin" {
+		saveKey = "⌘S"
+	}
+	footerLine := footerStyle.Render(fmt.Sprintf("Tab: Abas • j/k: Mover • Enter/%s: Salvar • Esc: Sair", saveKey))
 
 	// Assemble body
 	var bodyLines []string

@@ -367,6 +367,15 @@ func TestSettingsState_CancelAndSaveActions(t *testing.T) {
 		t.Errorf("Esperado ActionSaveAndClose para ctrl+s, obtido: %v", action)
 	}
 
+	// 3.1 'cmd+s', 'super+s' e '⌘s' retornam ActionSaveAndClose diretamente (suporte macOS)
+	for _, cmdKey := range []string{"cmd+s", "super+s", "⌘s"} {
+		state = NewSettingsState(nil)
+		action = state.HandleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(cmdKey)})
+		if action != ActionSaveAndClose {
+			t.Errorf("Esperado ActionSaveAndClose para '%s', obtido: %v", cmdKey, action)
+		}
+	}
+
 	// 4. 's' foca o botão de salvar e Enter confirma ActionSaveAndClose
 	state = NewSettingsState(nil)
 	action = state.HandleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
