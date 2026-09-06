@@ -1,9 +1,12 @@
 package ui
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"md-notes/internal/config"
 )
 
@@ -382,5 +385,194 @@ func TestSettingsState_CancelAndSaveActions(t *testing.T) {
 	state.HandleKey(tea.KeyMsg{Type: tea.KeyUp})
 	if state.FocusSaveButton {
 		t.Errorf("Esperado FocusSaveButton == false após Up")
+	}
+}
+
+// Renderização da aba de Temas com lista dos 7 temas e indicadores visuais
+func TestRenderSettingsModal_Themes(t *testing.T) {
+	t.Parallel()
+
+	state := NewSettingsState(nil)
+	state.ActiveTab = TabThemes
+	rendered := RenderSettingsModal(state, nil, 80, 24)
+
+	if rendered == "" {
+		t.Fatal("RenderSettingsModal retornou string vazia")
+	}
+
+	// Verifica título centralizado
+	if !strings.Contains(rendered, "Configurações") {
+		t.Errorf("Modal não contém o título 'Configurações'")
+	}
+
+	// Verifica abas
+	if !strings.Contains(rendered, "[1. Temas]") || !strings.Contains(rendered, "[2. Editor]") || !strings.Contains(rendered, "[3. Cores]") {
+		t.Errorf("Modal não contém os cabeçalhos de abas esperados")
+	}
+
+	// Verifica presença dos 7 temas incorporados
+	for _, themeName := range state.AvailableThemes {
+		if !strings.Contains(rendered, themeName) {
+			t.Errorf("Tema '%s' não encontrado no modal renderizado", themeName)
+		}
+	}
+
+	// Verifica marcador de tema ativo e botão de salvar
+	if !strings.Contains(rendered, "(•)") {
+		t.Errorf("Marcador de tema ativo '(•)' não encontrado no modal")
+	}
+	if !strings.Contains(rendered, "[Salvar e Fechar]") {
+		t.Errorf("Botão '[Salvar e Fechar]' não encontrado no modal")
+	}
+	if !strings.Contains(rendered, "Tab: Abas") {
+		t.Errorf("Rodapé com atalhos não encontrado no modal")
+	}
+}
+
+// Renderização da aba Editor com opções, checkboxes e seletores numéricos
+func TestRenderSettingsModal_Editor(t *testing.T) {
+	t.Parallel()
+
+	state := NewSettingsState(nil)
+	state.ActiveTab = TabEditor
+	rendered := RenderSettingsModal(state, nil, 80, 24)
+
+	if !strings.Contains(rendered, "[2. Editor]") {
+		t.Errorf("Aba '[2. Editor]' não identificada no modal")
+	}
+
+	// Verifica se as opções do editor são exibidas
+	for _, opt := range state.EditorOptions {
+		if !strings.Contains(rendered, opt.Label) {
+			t.Errorf("Opção de editor '%s' não encontrada no modal", opt.Label)
+		}
+	}
+
+	// Verifica presença de checkbox e formato numérico
+	if !strings.Contains(rendered, "[✓]") && !strings.Contains(rendered, "[ ]") {
+		t.Errorf("Checkboxes não encontrados no modal de editor")
+	}
+	if !strings.Contains(rendered, "< 4 >") {
+		t.Errorf("Valor numérico '< 4 >' não encontrado no modal de editor")
+	}
+}
+
+// Renderização da aba Cores com amostras, códigos hex e modo de edição inline
+func TestRenderSettingsModal_Colors(t *testing.T) {
+	t.Parallel()
+
+	state := NewSettingsState(nil)
+	state.ActiveTab = TabColors
+	rendered := RenderSettingsModal(state, nil, 80, 24)
+
+	if !strings.Contains(rendered, "[3. Cores]") {
+		t.Errorf("Aba '[3. Cores]' não identificada no modal")
+	}
+
+	// Verifica presença de tokens de cores e swatch
+	if !strings.Contains(rendered, "Título H1") {
+		t.Errorf("Token 'Título H1' não encontrado na aba de cores")
+	}
+	if !strings.Contains(rendered, "■") {
+		t.Errorf("Amostra visual (swatch) '■' não encontrada na aba de cores")
+	}
+
+	// Testa modo de edição hex ativo
+	state.IsEditingHex = true
+	state.HexInputBuffer = "#BD93F9"
+	editRendered := RenderSettingsModal(state, nil, 80, 24)
+	if !strings.Contains(editRendered, "Hex: [#BD93F9_]") {
+		t.Errorf("Prompt de edição inline 'Hex: [#BD93F9_]' não encontrado no modal")
+	}
+
+	// Testa exibição de erro de validação hex
+	state.HexInputError = "Código de cor inválido: use formato #RRGGBB"
+	errRendered := RenderSettingsModal(state, nil, 80, 24)
+	if !strings.Contains(errRendered, "Código de cor inválido: use formato #RRGGBB") {
+		t.Errorf("Mensagem de erro de código hex não encontrada no modal")
+	}
+}
+
+// Renderização de alerta de erro de persistência em disco
+func TestRenderSettingsModal_PersistenceError(t *testing.T) {
+	t.Parallel()
+
+	state := NewSettingsState(nil)
+	state.PersistenceError = "permissão negada"
+	rendered := RenderSettingsModal(state, nil, 80, 24)
+
+	expectedMsg := "Erro ao gravar config.toml: permissão negada"
+	if !strings.Contains(rendered, expectedMsg) {
+		t.Errorf("Alerta de persistência esperado '%s' não encontrado no modal", expectedMsg)
+	}
+}
+
+// TC18: Renderização Centralizada e Algoritmo de Overlay Blending
+func TestOverlayModal_CenteringAndBlending(t *testing.T) {
+	t.Parallel()
+
+	// Cria 20 linhas de fundo preenchidas com 80 caracteres
+	termWidth := 80
+	termHeight := 24
+	bgLines := make([]string, 20)
+	for i := 0; i < 20; i++ {
+		bgLines[i] = fmt.Sprintf("Line %02d: %s", i, strings.Repeat(".", 71))
+	}
+
+	// Gera modal estilizado com width 64 e height 20 (clamp para modalWidth=56, modalHeight=16)
+	state := NewSettingsState(nil)
+	modalBox := RenderSettingsModal(state, nil, 64, 20)
+
+	modalLines := strings.Split(modalBox, "\n")
+	modalHeight := len(modalLines)
+	if modalHeight != 16 {
+		t.Fatalf("Esperado modalHeight == 16, obtido: %d", modalHeight)
+	}
+	modalWidth := lipgloss.Width(modalLines[0])
+	if modalWidth != 56 {
+		t.Fatalf("Esperado modalWidth == 56, obtido: %d", modalWidth)
+	}
+
+	blended := OverlayModal(bgLines, modalBox, termWidth, termHeight)
+	if len(blended) != len(bgLines) {
+		t.Fatalf("Número de linhas mescladas esperado %d, obtido %d", len(bgLines), len(blended))
+	}
+
+	topY := (termHeight - modalHeight) / 2 // (24 - 16) / 2 = 4
+	leftX := (termWidth - modalWidth) / 2  // (80 - 56) / 2 = 12
+
+	// 1. Linhas acima do modal (0 até topY-1 = 3) devem permanecer idênticas ao fundo
+	for y := 0; y < topY; y++ {
+		if blended[y] != bgLines[y] {
+			t.Errorf("Linha superior %d foi alterada: esperado '%s', obtido '%s'", y, bgLines[y], blended[y])
+		}
+	}
+
+	// 2. Linhas na região do modal (topY até topY+modalHeight-1 = 4 até 19)
+	for y := topY; y < topY+modalHeight; y++ {
+		line := blended[y]
+
+		// Margem esquerda (primeiros 12 caracteres) deve preservar caracteres originais
+		expectedLeft := bgLines[y][:leftX]
+		if !strings.HasPrefix(line, expectedLeft) {
+			t.Errorf("Margem esquerda da linha %d corrompida: esperado prefixo '%s'", y, expectedLeft)
+		}
+
+		// Margem direita (após leftX + modalWidth = 68) deve preservar caracteres originais
+		expectedRight := bgLines[y][leftX+modalWidth:]
+		if !strings.HasSuffix(line, expectedRight) {
+			t.Errorf("Margem direita da linha %d corrompida: esperado sufixo '%s'", y, expectedRight)
+		}
+	}
+
+	// 3. Teste de resiliência com entradas vazias
+	emptyBlend := OverlayModal(nil, modalBox, termWidth, termHeight)
+	if len(emptyBlend) != modalHeight {
+		t.Errorf("Esperado fallback com linhas do modal para fundo vazio")
+	}
+
+	noopBlend := OverlayModal(bgLines, "", termWidth, termHeight)
+	if len(noopBlend) != len(bgLines) {
+		t.Errorf("Esperado cópia do fundo para modal vazio")
 	}
 }

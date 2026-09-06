@@ -1,10 +1,13 @@
 package ui
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 	"md-notes/internal/config"
 	"md-notes/internal/theme"
 )
@@ -74,6 +77,16 @@ type SettingsState struct {
 	PersistenceError string
 	FocusArea        int  // 0: tabs, 1: content list, 2: save button
 	FocusSaveButton  bool // true when the save button has focus
+}
+
+func clamp(val, minVal, maxVal int) int {
+	if val < minVal {
+		return minVal
+	}
+	if val > maxVal {
+		return maxVal
+	}
+	return val
 }
 
 // NewSettingsState initializes a new settings state cloned from the provided configuration.
@@ -580,4 +593,377 @@ func (s *SettingsState) getPaletteValue(p theme.Palette, key string) string {
 	default:
 		return ""
 	}
+}
+
+// RenderSettingsModal renders the interactive settings modal dialog with Lipgloss.
+func RenderSettingsModal(state *SettingsState, th *theme.CompiledTheme, width, height int) string {
+	if width < 50 || height < 14 {
+		return ""
+	}
+
+	modalWidth := clamp(width-8, 50, 60)
+	modalHeight := clamp(height-4, 14, 18)
+	innerWidth := modalWidth - 2
+	innerHeight := modalHeight - 2
+
+	if th == nil {
+		palette, _ := theme.GetPalette(state.WorkingConfig.Theme)
+		th = theme.CompileTheme(palette, state.WorkingConfig.Colors)
+	}
+
+	borderColor := th.Palette.H1
+	if borderColor == "" {
+		borderColor = "#BD93F9"
+	}
+	mutedColor := th.Palette.Muted
+	if mutedColor == "" {
+		mutedColor = "#6272A4"
+	}
+	activeColor := th.Palette.H2
+	if activeColor == "" {
+		activeColor = "#8BE9FD"
+	}
+
+	// 1. Title
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(borderColor)).
+		Width(innerWidth).
+		Align(lipgloss.Center)
+	titleLine := titleStyle.Render(" Configurações ")
+
+	// 2. Tabs Row
+	tabThemesStyle := lipgloss.NewStyle().Padding(0, 1)
+	tabEditorStyle := lipgloss.NewStyle().Padding(0, 1)
+	tabColorsStyle := lipgloss.NewStyle().Padding(0, 1)
+
+	if state.ActiveTab == TabThemes {
+		tabThemesStyle = tabThemesStyle.Bold(true).Foreground(lipgloss.Color(borderColor)).Underline(true)
+		tabEditorStyle = tabEditorStyle.Foreground(lipgloss.Color(mutedColor))
+		tabColorsStyle = tabColorsStyle.Foreground(lipgloss.Color(mutedColor))
+	} else if state.ActiveTab == TabEditor {
+		tabThemesStyle = tabThemesStyle.Foreground(lipgloss.Color(mutedColor))
+		tabEditorStyle = tabEditorStyle.Bold(true).Foreground(lipgloss.Color(borderColor)).Underline(true)
+		tabColorsStyle = tabColorsStyle.Foreground(lipgloss.Color(mutedColor))
+	} else {
+		tabThemesStyle = tabThemesStyle.Foreground(lipgloss.Color(mutedColor))
+		tabEditorStyle = tabEditorStyle.Foreground(lipgloss.Color(mutedColor))
+		tabColorsStyle = tabColorsStyle.Bold(true).Foreground(lipgloss.Color(borderColor)).Underline(true)
+	}
+
+	tabsStr := tabThemesStyle.Render("[1. Temas]") + " " + tabEditorStyle.Render("[2. Editor]") + " " + tabColorsStyle.Render("[3. Cores]")
+	tabsLine := lipgloss.NewStyle().Width(innerWidth).Align(lipgloss.Center).Render(tabsStr)
+
+	// 3. Separator Line
+	sepLine := lipgloss.NewStyle().Foreground(lipgloss.Color(mutedColor)).Render(strings.Repeat("─", innerWidth))
+
+	// 4. Tab Content (7 lines)
+	var contentLines []string
+	switch state.ActiveTab {
+	case TabThemes:
+		for i, themeName := range state.AvailableThemes {
+			cursor := "  "
+			if i == state.ActiveThemeIndex && !state.FocusSaveButton {
+				cursor = "> "
+			}
+			marker := "( ) "
+			if state.WorkingConfig.Theme == themeName {
+				marker = "(•) "
+			}
+			itemStyle := lipgloss.NewStyle()
+			if i == state.ActiveThemeIndex && !state.FocusSaveButton {
+				itemStyle = itemStyle.Bold(true).Foreground(lipgloss.Color(activeColor))
+			} else if state.WorkingConfig.Theme == themeName {
+				itemStyle = itemStyle.Bold(true).Foreground(lipgloss.Color(borderColor))
+			}
+			contentLines = append(contentLines, itemStyle.Render(cursor+marker+themeName))
+		}
+
+	case TabEditor:
+		for i, opt := range state.EditorOptions {
+			cursor := "  "
+			if i == state.ActiveEditorRow && !state.FocusSaveButton {
+				cursor = "> "
+			}
+
+			valStr := ""
+			switch opt.Type {
+			case FieldToggleBool:
+				val := false
+				switch opt.Key {
+				case "line_numbers":
+					val = state.WorkingConfig.Editor.LineNumbers
+				case "relative_line_numbers":
+					val = state.WorkingConfig.Editor.RelativeLineNumbers
+				case "word_wrap":
+					val = state.WorkingConfig.Editor.WordWrap
+				}
+				if val {
+					valStr = "[✓]"
+				} else {
+					valStr = "[ ]"
+				}
+			case FieldTabSize:
+				valStr = fmt.Sprintf("< %d >", state.WorkingConfig.Editor.TabSize)
+			case FieldScrolloff:
+				valStr = fmt.Sprintf("< %d >", state.WorkingConfig.Editor.Scrolloff)
+			}
+
+			itemStyle := lipgloss.NewStyle()
+			if i == state.ActiveEditorRow && !state.FocusSaveButton {
+				itemStyle = itemStyle.Bold(true).Foreground(lipgloss.Color(activeColor))
+			}
+			labelPadded := opt.Label
+			if len([]rune(labelPadded)) < 32 {
+				labelPadded += strings.Repeat(" ", 32-len([]rune(labelPadded)))
+			}
+			contentLines = append(contentLines, itemStyle.Render(fmt.Sprintf("%s%s %s", cursor, labelPadded, valStr)))
+		}
+		for len(contentLines) < 7 {
+			contentLines = append(contentLines, "")
+		}
+
+	case TabColors:
+		numVisible := 5
+		startIdx := 0
+		if state.ActiveColorRow >= numVisible {
+			startIdx = state.ActiveColorRow - numVisible + 1
+		}
+		if startIdx+numVisible > len(state.ColorTokens) {
+			startIdx = len(state.ColorTokens) - numVisible
+			if startIdx < 0 {
+				startIdx = 0
+			}
+		}
+		endIdx := startIdx + numVisible
+		if endIdx > len(state.ColorTokens) {
+			endIdx = len(state.ColorTokens)
+		}
+
+		for i := startIdx; i < endIdx; i++ {
+			token := state.ColorTokens[i]
+			cursor := "  "
+			if i == state.ActiveColorRow && !state.FocusSaveButton {
+				cursor = "> "
+			}
+
+			swatch := lipgloss.NewStyle().Foreground(lipgloss.Color(token.HexValue)).Render("■")
+			labelPadded := token.Label
+			if len([]rune(labelPadded)) < 24 {
+				labelPadded += strings.Repeat(" ", 24-len([]rune(labelPadded)))
+			}
+
+			valStr := token.HexValue
+			if state.IsEditingHex && i == state.ActiveColorRow {
+				valStr = fmt.Sprintf("Hex: [%s_]", state.HexInputBuffer)
+			}
+
+			itemStyle := lipgloss.NewStyle()
+			if i == state.ActiveColorRow && !state.FocusSaveButton {
+				itemStyle = itemStyle.Bold(true).Foreground(lipgloss.Color(activeColor))
+			}
+			contentLines = append(contentLines, itemStyle.Render(fmt.Sprintf("%s%s %s %s", cursor, swatch, labelPadded, valStr)))
+		}
+
+		if state.HexInputError != "" {
+			errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555")).Bold(true)
+			contentLines = append(contentLines, errStyle.Render("  "+state.HexInputError))
+		} else {
+			infoStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(mutedColor))
+			contentLines = append(contentLines, infoStyle.Render(fmt.Sprintf("  (item %d de %d)", state.ActiveColorRow+1, len(state.ColorTokens))))
+		}
+		for len(contentLines) < 7 {
+			contentLines = append(contentLines, "")
+		}
+	}
+
+	// 5. Alert / Persistence Error
+	alertLine := ""
+	if state.PersistenceError != "" {
+		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555")).Bold(true).Width(innerWidth).Align(lipgloss.Center)
+		alertLine = errStyle.Render("Erro ao gravar config.toml: " + state.PersistenceError)
+	}
+
+	// 6. Save Button
+	var saveBtn string
+	if state.FocusSaveButton {
+		saveBtn = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#FFFFFF")).
+			Background(lipgloss.Color(borderColor)).
+			Padding(0, 2).
+			Render("> [Salvar e Fechar] <")
+	} else {
+		saveBtn = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(mutedColor)).
+			Padding(0, 2).
+			Render("[Salvar e Fechar]")
+	}
+	saveLine := lipgloss.NewStyle().Width(innerWidth).Align(lipgloss.Center).Render(saveBtn)
+
+	// 7. Footer Shortcuts
+	footerStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(mutedColor)).
+		Width(innerWidth).
+		Align(lipgloss.Center)
+	footerLine := footerStyle.Render("Tab: Abas • j/k: Mover • Espaço/Enter: Alterar • Esc/q: Cancelar")
+
+	// Assemble body
+	var bodyLines []string
+	bodyLines = append(bodyLines, titleLine, tabsLine, sepLine)
+	bodyLines = append(bodyLines, contentLines...)
+	if alertLine != "" {
+		bodyLines = append(bodyLines, alertLine)
+	}
+	bodyLines = append(bodyLines, saveLine, footerLine)
+
+	bodyContent := strings.Join(bodyLines, "\n")
+
+	boxStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(borderColor)).
+		Width(innerWidth).
+		Height(innerHeight)
+
+	return boxStyle.Render(bodyContent)
+}
+
+func sliceVisualPrefix(s string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+	var b strings.Builder
+	curCol := 0
+	runes := []rune(s)
+	inEscape := false
+	hadEscape := false
+
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		if r == '\x1b' {
+			inEscape = true
+			hadEscape = true
+			b.WriteRune(r)
+			continue
+		}
+		if inEscape {
+			b.WriteRune(r)
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				inEscape = false
+			}
+			continue
+		}
+
+		w := runewidth.RuneWidth(r)
+		if curCol+w > maxWidth {
+			break
+		}
+		b.WriteRune(r)
+		curCol += w
+	}
+
+	if hadEscape {
+		b.WriteString("\x1b[0m")
+	}
+
+	if curCol < maxWidth {
+		b.WriteString(strings.Repeat(" ", maxWidth-curCol))
+	}
+	return b.String()
+}
+
+func sliceVisualSuffix(s string, startCol int) string {
+	if startCol <= 0 {
+		return s
+	}
+	var b strings.Builder
+	curCol := 0
+	runes := []rune(s)
+	inEscape := false
+	var activeEscapes strings.Builder
+
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		if r == '\x1b' {
+			inEscape = true
+			if curCol < startCol {
+				activeEscapes.WriteRune(r)
+			} else {
+				b.WriteRune(r)
+			}
+			continue
+		}
+		if inEscape {
+			if curCol < startCol {
+				activeEscapes.WriteRune(r)
+			} else {
+				b.WriteRune(r)
+			}
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				inEscape = false
+			}
+			continue
+		}
+
+		w := runewidth.RuneWidth(r)
+		if curCol >= startCol {
+			b.WriteRune(r)
+		}
+		curCol += w
+	}
+
+	return b.String()
+}
+
+// OverlayModal blends modalContent centered on top of backgroundLines,
+// substituting the background characters within the modal frame and preserving margins.
+func OverlayModal(backgroundLines []string, modalContent string, termWidth, termHeight int) []string {
+	if len(backgroundLines) == 0 {
+		return strings.Split(modalContent, "\n")
+	}
+	if modalContent == "" || termWidth <= 0 || termHeight <= 0 {
+		res := make([]string, len(backgroundLines))
+		copy(res, backgroundLines)
+		return res
+	}
+
+	modalLines := strings.Split(modalContent, "\n")
+	modalHeight := len(modalLines)
+	modalWidth := 0
+	for _, l := range modalLines {
+		w := lipgloss.Width(l)
+		if w > modalWidth {
+			modalWidth = w
+		}
+	}
+
+	topY := (termHeight - modalHeight) / 2
+	if topY < 0 {
+		topY = 0
+	}
+	leftX := (termWidth - modalWidth) / 2
+	if leftX < 0 {
+		leftX = 0
+	}
+
+	out := make([]string, len(backgroundLines))
+	for y := 0; y < len(backgroundLines); y++ {
+		bgLine := backgroundLines[y]
+		if y < topY || y >= topY+modalHeight {
+			out[y] = bgLine
+			continue
+		}
+
+		modalLineIdx := y - topY
+		modalLine := ""
+		if modalLineIdx < len(modalLines) {
+			modalLine = modalLines[modalLineIdx]
+		}
+
+		leftMargin := sliceVisualPrefix(bgLine, leftX)
+		rightMargin := sliceVisualSuffix(bgLine, leftX+modalWidth)
+		out[y] = leftMargin + modalLine + rightMargin
+	}
+
+	return out
 }
