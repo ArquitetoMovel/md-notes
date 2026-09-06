@@ -2,7 +2,8 @@ package app_test
 
 import (
 	"fmt"
-	"runtime"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -102,11 +103,15 @@ func TestModel_RenderPerformance60FPS(t *testing.T) {
 
 	t.Logf("Rendered %d frames on 50k lines in %v (average %v per frame)", iterations, totalElapsed, avgPerFrame)
 
-	// PRD Requirement: 60 FPS corresponds to < 16.6 ms per frame
-	threshold := 16 * time.Millisecond
-	if runtime.GOOS == "linux" {
-		threshold = 30 * time.Millisecond
+	thresholdMs := 16
+	if v := os.Getenv("MDN_RENDER_THRESHOLD_MS"); v != "" {
+		parsed, err := strconv.Atoi(v)
+		if err != nil || parsed <= 0 {
+			t.Fatalf("invalid MDN_RENDER_THRESHOLD_MS=%q; expected positive integer in milliseconds", v)
+		}
+		thresholdMs = parsed
 	}
+	threshold := time.Duration(thresholdMs) * time.Millisecond
 
 	if avgPerFrame > threshold {
 		t.Errorf("average frame time exceeded %v: %v", threshold, avgPerFrame)
