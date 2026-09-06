@@ -23,6 +23,7 @@ func ExecuteExCommand(
 	buf *buffer.Buffer,
 	saveFunc func(targetPath string, force bool) tea.Cmd,
 	quitFunc func(force bool) tea.Cmd,
+	configFunc func() tea.Cmd,
 ) CommandResult {
 	cmdStr := strings.TrimSpace(input)
 	if cmdStr == "" {
@@ -111,6 +112,13 @@ func ExecuteExCommand(
 			cmd = tea.Sequence(saveFunc(targetPath, false), quitFunc(false))
 		} else if saveFunc != nil {
 			cmd = saveFunc(targetPath, false)
+		}
+		return CommandResult{Cmd: cmd, CloseMode: true}
+
+	case "c", "config":
+		var cmd tea.Cmd
+		if configFunc != nil {
+			cmd = configFunc()
 		}
 		return CommandResult{Cmd: cmd, CloseMode: true}
 

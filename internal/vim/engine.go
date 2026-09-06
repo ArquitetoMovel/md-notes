@@ -18,6 +18,7 @@ type Engine struct {
 	countAccum    int
 	SaveCallback          func(targetPath string, force bool) tea.Cmd
 	QuitCallback          func(force bool) tea.Cmd
+	ConfigCallback        func() tea.Cmd
 	SearchQueryCallback   func(query string, isReverse bool) tea.Cmd
 	SearchNavCallback     func(forward bool) tea.Cmd
 	SearchCancelCallback  func(initPos Position) tea.Cmd
@@ -462,7 +463,7 @@ func (e *Engine) handleCommandKey(msg tea.KeyMsg) (tea.Cmd, string) {
 		return nil, ""
 
 	case tea.KeyEnter:
-		res := ExecuteExCommand(e.State.CommandInput, e.Buffer, e.SaveCallback, e.QuitCallback)
+		res := ExecuteExCommand(e.State.CommandInput, e.Buffer, e.SaveCallback, e.QuitCallback, e.ConfigCallback)
 		if res.CloseMode {
 			e.State.CurrentMode = ModeNormal
 			e.State.CommandInput = ""
