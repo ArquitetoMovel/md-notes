@@ -78,11 +78,11 @@
     {
       "id": "F08",
       "name": "Interactive Configuration Panel & Settings UI",
-      "status": "todo",
+      "status": "done",
       "wave": 5,
       "priority": 2,
-      "specPath": "",
-      "updatedAt": "2026-09-06T20:22:00Z",
+      "specPath": ".sdd-builder/F08-interactive-configuration-panel-settings-ui",
+      "updatedAt": "2026-09-06T22:10:00Z",
       "note": ""
     }
   ],
