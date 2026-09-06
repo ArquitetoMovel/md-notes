@@ -576,3 +576,32 @@ func TestOverlayModal_CenteringAndBlending(t *testing.T) {
 		t.Errorf("Esperado cópia do fundo para modal vazio")
 	}
 }
+
+func TestSettingsState_SaveButtonNavigationAndAction(t *testing.T) {
+	t.Parallel()
+
+	state := NewSettingsState(nil)
+	state.ActiveTab = TabEditor
+	state.ActiveEditorRow = len(state.EditorOptions) - 1 // último item (word_wrap)
+	state.FocusSaveButton = false
+
+	// Pressionar Down no último item deve focar o botão [Salvar e Fechar]
+	state.HandleKey(tea.KeyMsg{Type: tea.KeyDown})
+	if !state.FocusSaveButton {
+		t.Fatalf("Esperado FocusSaveButton = true após Down no último item")
+	}
+
+	// Pressionar Enter no botão focado deve retornar ActionSaveAndClose
+	action := state.HandleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if action != ActionSaveAndClose {
+		t.Errorf("Esperado ActionSaveAndClose ao pressionar Enter no botão Salvar, obtido: %v", action)
+	}
+
+	// Resetar e testar tecla Up para desfocar
+	state.FocusSaveButton = true
+	state.HandleKey(tea.KeyMsg{Type: tea.KeyUp})
+	if state.FocusSaveButton {
+		t.Errorf("Esperado FocusSaveButton = false após Up no botão Salvar")
+	}
+}
+

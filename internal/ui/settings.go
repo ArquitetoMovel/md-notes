@@ -362,14 +362,23 @@ func (s *SettingsState) HandleKey(msg tea.KeyMsg) SettingsAction {
 		case TabThemes:
 			if s.ActiveThemeIndex < len(s.AvailableThemes)-1 {
 				s.ActiveThemeIndex++
+			} else {
+				s.FocusSaveButton = true
+				s.FocusArea = 2
 			}
 		case TabEditor:
 			if s.ActiveEditorRow < len(s.EditorOptions)-1 {
 				s.ActiveEditorRow++
+			} else {
+				s.FocusSaveButton = true
+				s.FocusArea = 2
 			}
 		case TabColors:
 			if s.ActiveColorRow < len(s.ColorTokens)-1 {
 				s.ActiveColorRow++
+			} else {
+				s.FocusSaveButton = true
+				s.FocusArea = 2
 			}
 		}
 		return ActionNone
@@ -806,7 +815,7 @@ func RenderSettingsModal(state *SettingsState, th *theme.CompiledTheme, width, h
 		Foreground(lipgloss.Color(mutedColor)).
 		Width(innerWidth).
 		Align(lipgloss.Center)
-	footerLine := footerStyle.Render("Tab: Abas • j/k: Mover • Espaço/Enter: Alterar • Esc/q: Cancelar")
+	footerLine := footerStyle.Render("Tab: Abas • j/k: Mover/Salvar • Enter: Confirmar • Ctrl+S: Salvar • Esc: Sair")
 
 	// Assemble body
 	var bodyLines []string
