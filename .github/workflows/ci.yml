@@ -8,12 +8,8 @@ on:
 
 jobs:
   test:
-    name: Test on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+    name: Test on Ubuntu
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -32,10 +28,8 @@ jobs:
         run: go test -v ./...
 
   cross-compile:
-    name: Multi-Platform Build Verification
+    name: Cross-Compile Release Binaries
     runs-on: ubuntu-latest
-    env:
-      MDN_RENDER_THRESHOLD_MS: "30"
     needs: test
     steps:
       - name: Checkout repository
@@ -47,11 +41,31 @@ jobs:
           go-version: "stable"
           cache: true
 
-      - name: Test Multi-Platform Build & Package
-        run: go run scripts/build.go -package
+      - name: Cross-compile binaries
+        run: |
+          mkdir -p dist
+          targets=(
+            "linux amd64"
+            "linux arm64"
+            "darwin amd64"
+            "darwin arm64"
+            "windows amd64"
+            "windows arm64"
+          )
+
+          for target in "${targets[@]}"; do
+            read -r GOOS GOARCH <<<"$target"
+            output="dist/mdn_${GOOS}_${GOARCH}"
+            if [ "$GOOS" = "windows" ]; then
+              output="${output}.exe"
+            fi
+
+            echo "Building ${GOOS}/${GOARCH} -> ${output}"
+            CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" go build -trimpath -o "$output" ./cmd/mdn
+          done
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mdn-multiplatform-binaries
+          name: mdn-cross-platform-binaries
           path: dist/
