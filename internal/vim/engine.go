@@ -10,12 +10,12 @@ import (
 
 // Engine is the central Vim modal editing state machine.
 type Engine struct {
-	Buffer        *buffer.Buffer
-	History       *History
-	Clipboard     *Clipboard
-	State         ModalState
-	pendingOp     rune
-	countAccum    int
+	Buffer                *buffer.Buffer
+	History               *History
+	Clipboard             *Clipboard
+	State                 ModalState
+	pendingOp             rune
+	countAccum            int
 	SaveCallback          func(targetPath string, force bool) tea.Cmd
 	QuitCallback          func(force bool) tea.Cmd
 	ConfigCallback        func() tea.Cmd
@@ -194,6 +194,18 @@ func (e *Engine) handleNormalKey(msg tea.KeyMsg) (tea.Cmd, string) {
 	case "j", "down":
 		MoveDown(e.Buffer, count, false)
 	case "k", "up":
+		MoveUp(e.Buffer, count, false)
+	case "ctrl+d", "pagedown", "pgdown":
+		MoveDown(e.Buffer, 12*count, false)
+	case "ctrl+u", "pageup", "pgup":
+		MoveUp(e.Buffer, 12*count, false)
+	case "ctrl+f":
+		MoveDown(e.Buffer, 24*count, false)
+	case "ctrl+b":
+		MoveUp(e.Buffer, 24*count, false)
+	case "ctrl+e":
+		MoveDown(e.Buffer, count, false)
+	case "ctrl+y":
 		MoveUp(e.Buffer, count, false)
 	case "w":
 		NextWordStart(e.Buffer, count)
@@ -423,6 +435,10 @@ func (e *Engine) handleVisualKey(msg tea.KeyMsg) (tea.Cmd, string) {
 		MoveDown(e.Buffer, 1, false)
 	case "k", "up":
 		MoveUp(e.Buffer, 1, false)
+	case "ctrl+d", "pagedown", "pgdown":
+		MoveDown(e.Buffer, 12, false)
+	case "ctrl+u", "pageup", "pgup":
+		MoveUp(e.Buffer, 12, false)
 	case "w":
 		NextWordStart(e.Buffer, 1)
 	case "b":

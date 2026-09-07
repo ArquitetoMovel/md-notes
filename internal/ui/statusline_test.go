@@ -164,4 +164,3 @@ func TestStatusLine_SearchModeCommandLine(t *testing.T) {
 		t.Errorf("Status line esperada conter 'SEARCH', obtido: '%s'", sl)
 	}
 }
-

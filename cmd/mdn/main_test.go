@@ -179,4 +179,3 @@ func TestCLI_HelpFlag(t *testing.T) {
 		}
 	}
 }
-

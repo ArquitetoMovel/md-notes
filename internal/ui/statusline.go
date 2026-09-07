@@ -13,13 +13,13 @@ import (
 
 // StatusState holds all data required to render the status bar and bottom line.
 type StatusState struct {
-	Mode           vim.Mode
-	FilePath       string
-	IsDirty        bool
-	CursorLine     int // 1-indexed
-	CursorCol      int // 1-indexed
-	TotalLines     int
-	LineEnding     buffer.LineEnding
+	Mode            vim.Mode
+	FilePath        string
+	IsDirty         bool
+	CursorLine      int // 1-indexed
+	CursorCol       int // 1-indexed
+	TotalLines      int
+	LineEnding      buffer.LineEnding
 	SearchMatchCur  int // 1-indexed, 0 if inactive
 	SearchMatchTot  int // 0 if inactive
 	SearchIsReverse bool

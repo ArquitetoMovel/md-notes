@@ -105,3 +105,65 @@ func TestViewport_CoordinateMapping(t *testing.T) {
 		t.Errorf("expected ScreenX 24, got %d", coord.ScreenX)
 	}
 }
+
+func TestViewport_LargeDocumentWithSoftWrap_EndRendered(t *testing.T) {
+	buf := buffer.NewEmptyBuffer("doc.md")
+	lineText := strings.Repeat("a", 150)
+	for i := 0; i < 100; i++ {
+		if i == 0 {
+			_ = buf.SetLine(0, buffer.NewLine(lineText, buffer.EndingLF))
+		} else {
+			buf.InsertLine(i, buffer.NewLine(lineText, buffer.EndingLF))
+		}
+	}
+
+	vp := NewViewport(60, 20)
+	vp.SoftWrap = true
+
+	// Move cursor to line 99 using AdjustScrollWithBuffer
+	vp.AdjustScrollWithBuffer(buffer.Cursor{Line: 99, Col: 0}, buf)
+
+	visible := vp.GetVisibleLines(buf)
+	found := false
+	for _, vl := range visible {
+		if vl.LogicalLine == 99 {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("Line 99 is NOT rendered! Visible lines only range from logical line %d to %d", visible[0].LogicalLine, visible[len(visible)-1].LogicalLine)
+	}
+}
+
+func TestViewport_MouseScrollDownAndUp(t *testing.T) {
+	buf := buffer.NewEmptyBuffer("doc.md")
+	for i := 0; i < 50; i++ {
+		lineText := strings.Repeat("x", 20)
+		if i == 0 {
+			_ = buf.SetLine(0, buffer.NewLine(lineText, buffer.EndingLF))
+		} else {
+			buf.InsertLine(i, buffer.NewLine(lineText, buffer.EndingLF))
+		}
+	}
+
+	vp := NewViewport(80, 10)
+	vp.TopLine = 0
+	buf.Cursor = buffer.Cursor{Line: 0, Col: 0}
+
+	// Scroll down 5 lines
+	vp.ScrollDown(5, buf)
+	if vp.TopLine != 5 {
+		t.Errorf("expected TopLine 5 after ScrollDown(5), got %d", vp.TopLine)
+	}
+	// Cursor should have been brought into view (at least at TopLine)
+	if buf.Cursor.Line < 5 {
+		t.Errorf("expected Cursor.Line >= 5, got %d", buf.Cursor.Line)
+	}
+
+	// Scroll up 3 lines
+	vp.ScrollUp(3, buf)
+	if vp.TopLine != 2 {
+		t.Errorf("expected TopLine 2 after ScrollUp(3), got %d", vp.TopLine)
+	}
+}

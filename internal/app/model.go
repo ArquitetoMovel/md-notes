@@ -140,7 +140,7 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher, opts ...ModelOption) *Mode
 				m.Buffer.Cursor.Line = m.Vim.State.SearchInitPos.Line
 				m.Buffer.Cursor.Col = m.Vim.State.SearchInitPos.Col
 				if m.Viewport != nil {
-					m.Viewport.AdjustScroll(m.Buffer.Cursor, m.Buffer.LineCount())
+					m.Viewport.AdjustScrollWithBuffer(m.Buffer.Cursor, m.Buffer)
 				}
 			}
 			return nil
@@ -159,7 +159,7 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher, opts ...ModelOption) *Mode
 			m.Buffer.Cursor.Line = targetMatch.Line
 			m.Buffer.Cursor.Col = targetMatch.StartCol
 			if m.Viewport != nil {
-				m.Viewport.AdjustScroll(m.Buffer.Cursor, m.Buffer.LineCount())
+				m.Viewport.AdjustScrollWithBuffer(m.Buffer.Cursor, m.Buffer)
 			}
 		}
 		return nil
@@ -172,7 +172,7 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher, opts ...ModelOption) *Mode
 			m.Buffer.Cursor.Line = initPos.Line
 			m.Buffer.Cursor.Col = initPos.Col
 			if m.Viewport != nil {
-				m.Viewport.AdjustScroll(m.Buffer.Cursor, m.Buffer.LineCount())
+				m.Viewport.AdjustScrollWithBuffer(m.Buffer.Cursor, m.Buffer)
 			}
 		}
 		return nil
@@ -195,7 +195,7 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher, opts ...ModelOption) *Mode
 				m.Buffer.Cursor.Line = m.Vim.State.SearchInitPos.Line
 				m.Buffer.Cursor.Col = m.Vim.State.SearchInitPos.Col
 				if m.Viewport != nil {
-					m.Viewport.AdjustScroll(m.Buffer.Cursor, m.Buffer.LineCount())
+					m.Viewport.AdjustScrollWithBuffer(m.Buffer.Cursor, m.Buffer)
 				}
 			}
 		} else {
@@ -204,7 +204,7 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher, opts ...ModelOption) *Mode
 				m.Buffer.Cursor.Line = match.Line
 				m.Buffer.Cursor.Col = match.StartCol
 				if m.Viewport != nil {
-					m.Viewport.AdjustScroll(m.Buffer.Cursor, m.Buffer.LineCount())
+					m.Viewport.AdjustScrollWithBuffer(m.Buffer.Cursor, m.Buffer)
 				}
 			}
 			m.StatusMsg = ""
@@ -235,7 +235,7 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher, opts ...ModelOption) *Mode
 			m.Buffer.Cursor.Line = match.Line
 			m.Buffer.Cursor.Col = match.StartCol
 			if m.Viewport != nil {
-				m.Viewport.AdjustScroll(m.Buffer.Cursor, m.Buffer.LineCount())
+				m.Viewport.AdjustScrollWithBuffer(m.Buffer.Cursor, m.Buffer)
 			}
 		}
 
@@ -436,6 +436,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ConfigBackup = nil
 		m.ThemeBackup = nil
 		m.StatusMsg = "Configurações salvas em config.toml"
+		return m, nil
+
+	case tea.MouseMsg:
+		if m.SettingsOpen {
+			return m, nil
+		}
+		switch msg.Button {
+		case tea.MouseButtonWheelUp:
+			if m.Viewport != nil && m.Buffer != nil {
+				m.Viewport.ScrollUp(3, m.Buffer)
+			}
+			return m, nil
+		case tea.MouseButtonWheelDown:
+			if m.Viewport != nil && m.Buffer != nil {
+				m.Viewport.ScrollDown(3, m.Buffer)
+			}
+			return m, nil
+		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -814,7 +832,7 @@ func (m *Model) View() string {
 	}
 
 	totalLines := m.Buffer.LineCount()
-	m.Viewport.AdjustScroll(m.Buffer.Cursor, totalLines)
+	m.Viewport.AdjustScrollWithBuffer(m.Buffer.Cursor, m.Buffer)
 
 	visibleLines := m.Viewport.GetVisibleLines(m.Buffer)
 	vpHeight := m.Viewport.Height
@@ -822,7 +840,8 @@ func (m *Model) View() string {
 		vpHeight = 1
 	}
 
-	scrollbar := ui.RenderScrollbar(totalLines, vpHeight, m.Viewport.TopLine, m.Theme)
+	totalVisualLines := m.Viewport.TotalVisualLines(m.Buffer)
+	scrollbar := ui.RenderScrollbar(totalVisualLines, vpHeight, m.Viewport.TopLine, m.Theme)
 	gutterW := ui.CalculateGutterWidth(totalLines)
 
 	// Modal & status information

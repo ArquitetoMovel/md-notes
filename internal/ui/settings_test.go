@@ -613,4 +613,3 @@ func TestSettingsState_SaveButtonNavigationAndAction(t *testing.T) {
 		t.Errorf("Esperado FocusSaveButton = false após Up no botão Salvar")
 	}
 }
-

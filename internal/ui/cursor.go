@@ -8,10 +8,10 @@ import (
 
 // Standard DECSCUSR ANSI escape sequences for terminal cursor shapes
 const (
-	CursorBlock      = "\x1b[2 q" // Solid block (Normal / Command)
-	CursorBeam       = "\x1b[6 q" // Vertical bar (Insert)
-	CursorUnderline  = "\x1b[4 q" // Underline (Visual modes)
-	CursorRestore    = "\x1b[0 q" // Restore user terminal default cursor
+	CursorBlock     = "\x1b[2 q" // Solid block (Normal / Command)
+	CursorBeam      = "\x1b[6 q" // Vertical bar (Insert)
+	CursorUnderline = "\x1b[4 q" // Underline (Visual modes)
+	CursorRestore   = "\x1b[0 q" // Restore user terminal default cursor
 )
 
 // GetCursorShapeSequence returns the ANSI escape sequence to set the cursor shape for the given Vim mode.
@@ -43,4 +43,3 @@ func GetCursorPositionSequence(screenY, screenX int) string {
 	}
 	return fmt.Sprintf("\x1b[%d;%dH", screenY+1, screenX+1)
 }
-

@@ -221,8 +221,8 @@ func (p *Parser) ParseLine(line buffer.Line, inCodeBlock *bool, codeLang *string
 	}
 
 	// 4. Checkboxes: - [ ] or - [x] or * [ ] or * [x]
-	if (strings.HasPrefix(trimmed, "- [ ] ") || strings.HasPrefix(trimmed, "- [x] ") || strings.HasPrefix(trimmed, "- [X] ") ||
-		strings.HasPrefix(trimmed, "* [ ] ") || strings.HasPrefix(trimmed, "* [x] ") || strings.HasPrefix(trimmed, "* [X] ")) {
+	if strings.HasPrefix(trimmed, "- [ ] ") || strings.HasPrefix(trimmed, "- [x] ") || strings.HasPrefix(trimmed, "- [X] ") ||
+		strings.HasPrefix(trimmed, "* [ ] ") || strings.HasPrefix(trimmed, "* [x] ") || strings.HasPrefix(trimmed, "* [X] ") {
 		rawStart := strings.IndexAny(raw, "-*")
 		indent := raw[:rawStart]
 		prefix := raw[rawStart : rawStart+6]
@@ -256,7 +256,7 @@ func (p *Parser) ParseLine(line buffer.Line, inCodeBlock *bool, codeLang *string
 	}
 
 	// 5. Unordered Lists: - item, * item, + item
-	if (strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* ") || strings.HasPrefix(trimmed, "+ ")) {
+	if strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* ") || strings.HasPrefix(trimmed, "+ ") {
 		rawStart := strings.IndexAny(raw, "-*+")
 		indent := raw[:rawStart]
 		bullet := raw[rawStart : rawStart+2]
