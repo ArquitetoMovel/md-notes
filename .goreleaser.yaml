@@ -28,13 +28,24 @@ builds:
       - -X main.GitCommit={{.Commit}}
       - -X main.BuildDate={{.Date}}
 
+universal_binaries:
+  - id: mdn
+    ids:
+      - mdn
+    replace: false
+
 archives:
   - id: default
     formats: [tar.gz]
     format_overrides:
       - goos: windows
         formats: [zip]
-    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    name_template: >-
+      {{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ if eq .Arch "all" }}universal{{ else }}{{ .Arch }}{{ end }}
+
+release:
+  mode: keep-existing
+  replace_existing_artifacts: true
 
 checksum:
   name_template: "checksums.txt"
