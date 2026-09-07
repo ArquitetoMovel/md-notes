@@ -270,4 +270,3 @@ func TestLexer_MarkerStyles_BoldAndItalic(t *testing.T) {
 		t.Errorf("expected _ markers to be italic")
 	}
 }
-

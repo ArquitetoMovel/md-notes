@@ -30,6 +30,24 @@ type SaveResultMsg struct {
 	Err error
 }
 
+// OpenSettingsMsg requests opening the configuration settings modal.
+type OpenSettingsMsg struct{}
+
+// CloseSettingsMsg requests closing the settings modal, optionally persisting changes.
+type CloseSettingsMsg struct {
+	Save bool
+}
+
+// ConfigSavedMsg is dispatched when the configuration is successfully saved to disk.
+type ConfigSavedMsg struct {
+	FilePath string
+}
+
+// ConfigSaveErrorMsg is dispatched when saving the configuration to disk fails.
+type ConfigSaveErrorMsg struct {
+	Err error
+}
+
 // ModelOption allows optional configuration of the app Model.
 type ModelOption func(*Model)
 
@@ -69,6 +87,12 @@ type Model struct {
 	Quitting       bool
 	Width          int
 	Height         int
+
+	// Settings panel state (F08)
+	SettingsOpen  bool
+	SettingsState *ui.SettingsState
+	ConfigBackup  *config.Config
+	ThemeBackup   *theme.CompiledTheme
 }
 
 // NewModel creates a new Model instance with sensible defaults and optional parameters.
@@ -103,6 +127,11 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher, opts ...ModelOption) *Mode
 			return QuitMsg{Force: force}
 		}
 	}
+	m.Vim.ConfigCallback = func() tea.Cmd {
+		return func() tea.Msg {
+			return OpenSettingsMsg{}
+		}
+	}
 
 	m.Vim.SearchQueryCallback = func(query string, isReverse bool) tea.Cmd {
 		if query == "" {
@@ -111,7 +140,7 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher, opts ...ModelOption) *Mode
 				m.Buffer.Cursor.Line = m.Vim.State.SearchInitPos.Line
 				m.Buffer.Cursor.Col = m.Vim.State.SearchInitPos.Col
 				if m.Viewport != nil {
-					m.Viewport.AdjustScroll(m.Buffer.Cursor, m.Buffer.LineCount())
+					m.Viewport.AdjustScrollWithBuffer(m.Buffer.Cursor, m.Buffer)
 				}
 			}
 			return nil
@@ -130,7 +159,7 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher, opts ...ModelOption) *Mode
 			m.Buffer.Cursor.Line = targetMatch.Line
 			m.Buffer.Cursor.Col = targetMatch.StartCol
 			if m.Viewport != nil {
-				m.Viewport.AdjustScroll(m.Buffer.Cursor, m.Buffer.LineCount())
+				m.Viewport.AdjustScrollWithBuffer(m.Buffer.Cursor, m.Buffer)
 			}
 		}
 		return nil
@@ -143,7 +172,7 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher, opts ...ModelOption) *Mode
 			m.Buffer.Cursor.Line = initPos.Line
 			m.Buffer.Cursor.Col = initPos.Col
 			if m.Viewport != nil {
-				m.Viewport.AdjustScroll(m.Buffer.Cursor, m.Buffer.LineCount())
+				m.Viewport.AdjustScrollWithBuffer(m.Buffer.Cursor, m.Buffer)
 			}
 		}
 		return nil
@@ -166,7 +195,7 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher, opts ...ModelOption) *Mode
 				m.Buffer.Cursor.Line = m.Vim.State.SearchInitPos.Line
 				m.Buffer.Cursor.Col = m.Vim.State.SearchInitPos.Col
 				if m.Viewport != nil {
-					m.Viewport.AdjustScroll(m.Buffer.Cursor, m.Buffer.LineCount())
+					m.Viewport.AdjustScrollWithBuffer(m.Buffer.Cursor, m.Buffer)
 				}
 			}
 		} else {
@@ -175,7 +204,7 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher, opts ...ModelOption) *Mode
 				m.Buffer.Cursor.Line = match.Line
 				m.Buffer.Cursor.Col = match.StartCol
 				if m.Viewport != nil {
-					m.Viewport.AdjustScroll(m.Buffer.Cursor, m.Buffer.LineCount())
+					m.Viewport.AdjustScrollWithBuffer(m.Buffer.Cursor, m.Buffer)
 				}
 			}
 			m.StatusMsg = ""
@@ -206,7 +235,7 @@ func NewModel(buf *buffer.Buffer, w *watcher.Watcher, opts ...ModelOption) *Mode
 			m.Buffer.Cursor.Line = match.Line
 			m.Buffer.Cursor.Col = match.StartCol
 			if m.Viewport != nil {
-				m.Viewport.AdjustScroll(m.Buffer.Cursor, m.Buffer.LineCount())
+				m.Viewport.AdjustScrollWithBuffer(m.Buffer.Cursor, m.Buffer)
 			}
 		}
 
@@ -338,6 +367,95 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case OpenSettingsMsg:
+		if m.Width < 50 || m.Height < 14 {
+			m.StatusMsg = "Dimensão insuficiente (mínimo 50x14) para abrir o painel de configurações"
+			return m, nil
+		}
+		if m.Config != nil {
+			cfgCopy := *m.Config
+			cfgCopy.Editor = m.Config.Editor
+			cfgCopy.Colors = m.Config.Colors
+			m.ConfigBackup = &cfgCopy
+		}
+		m.ThemeBackup = m.Theme
+		m.SettingsState = ui.NewSettingsState(m.Config)
+		m.SettingsOpen = true
+		m.StatusMsg = ""
+		return m, nil
+
+	case CloseSettingsMsg:
+		if !msg.Save {
+			if m.ConfigBackup != nil {
+				*m.Config = *m.ConfigBackup
+				m.ConfigBackup = nil
+			}
+			if m.ThemeBackup != nil {
+				m.Theme = m.ThemeBackup
+				m.ThemeBackup = nil
+			}
+			if m.Theme != nil {
+				m.MarkdownParser = markdown.NewParser(m.Theme)
+			}
+			if m.Viewport != nil && m.Config != nil {
+				m.Viewport.RelativeNum = m.Config.Editor.RelativeLineNumbers
+				m.Viewport.Scrolloff = m.Config.Editor.Scrolloff
+				m.Viewport.SoftWrap = m.Config.Editor.WordWrap
+			}
+			m.SettingsOpen = false
+			m.SettingsState = nil
+			return m, nil
+		}
+
+		if m.ConfigWatcher != nil {
+			m.ConfigWatcher.Pause()
+		}
+		cfgPath, err := config.GetConfigFilePath()
+		var saveErr error
+		if err != nil {
+			saveErr = err
+		} else if m.SettingsState != nil {
+			saveErr = config.SaveConfigFile(cfgPath, &m.SettingsState.WorkingConfig)
+		}
+		if m.ConfigWatcher != nil {
+			m.ConfigWatcher.Resume()
+		}
+
+		if saveErr != nil {
+			if m.SettingsState != nil {
+				m.SettingsState.PersistenceError = saveErr.Error()
+			}
+			return m, nil
+		}
+
+		if m.SettingsState != nil && m.Config != nil {
+			*m.Config = m.SettingsState.WorkingConfig
+		}
+		m.SettingsOpen = false
+		m.SettingsState = nil
+		m.ConfigBackup = nil
+		m.ThemeBackup = nil
+		m.StatusMsg = "Configurações salvas em config.toml"
+		return m, nil
+
+	case tea.MouseMsg:
+		if m.SettingsOpen {
+			return m, nil
+		}
+		switch msg.Button {
+		case tea.MouseButtonWheelUp:
+			if m.Viewport != nil && m.Buffer != nil {
+				m.Viewport.ScrollUp(3, m.Buffer)
+			}
+			return m, nil
+		case tea.MouseButtonWheelDown:
+			if m.Viewport != nil && m.Buffer != nil {
+				m.Viewport.ScrollDown(3, m.Buffer)
+			}
+			return m, nil
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		if msg.Type == tea.KeyCtrlC || msg.String() == "ctrl+c" {
 			if m.Buffer.IsDirty {
@@ -346,6 +464,46 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.Quitting = true
 			return m, tea.Quit
+		}
+
+		// Global F2 toggle shortcut
+		if msg.Type == tea.KeyF2 || msg.String() == "f2" {
+			if m.SettingsOpen {
+				return m.Update(CloseSettingsMsg{Save: false})
+			}
+			return m.Update(OpenSettingsMsg{})
+		}
+
+		// Intercept exclusively if settings modal is open
+		if m.SettingsOpen && m.SettingsState != nil {
+			action := m.SettingsState.HandleKey(msg)
+			switch action {
+			case ui.ActionLivePreviewUpdated:
+				m.Config.Theme = m.SettingsState.WorkingConfig.Theme
+				m.Config.Editor = m.SettingsState.WorkingConfig.Editor
+				m.Config.Colors = m.SettingsState.WorkingConfig.Colors
+
+				resolvedTheme := theme.ResolveThemeName(m.Config.Theme)
+				palette, _ := theme.GetPalette(resolvedTheme)
+				m.Theme = theme.CompileTheme(palette, m.Config.Colors)
+				m.MarkdownParser = markdown.NewParser(m.Theme)
+
+				if m.Viewport != nil {
+					m.Viewport.RelativeNum = m.Config.Editor.RelativeLineNumbers
+					m.Viewport.Scrolloff = m.Config.Editor.Scrolloff
+					m.Viewport.SoftWrap = m.Config.Editor.WordWrap
+				}
+				return m, nil
+
+			case ui.ActionCancelAndClose:
+				return m.Update(CloseSettingsMsg{Save: false})
+
+			case ui.ActionSaveAndClose:
+				return m.Update(CloseSettingsMsg{Save: true})
+
+			default:
+				return m, nil
+			}
 		}
 
 		if m.Vim != nil {
@@ -674,7 +832,7 @@ func (m *Model) View() string {
 	}
 
 	totalLines := m.Buffer.LineCount()
-	m.Viewport.AdjustScroll(m.Buffer.Cursor, totalLines)
+	m.Viewport.AdjustScrollWithBuffer(m.Buffer.Cursor, m.Buffer)
 
 	visibleLines := m.Viewport.GetVisibleLines(m.Buffer)
 	vpHeight := m.Viewport.Height
@@ -682,7 +840,8 @@ func (m *Model) View() string {
 		vpHeight = 1
 	}
 
-	scrollbar := ui.RenderScrollbar(totalLines, vpHeight, m.Viewport.TopLine, m.Theme)
+	totalVisualLines := m.Viewport.TotalVisualLines(m.Buffer)
+	scrollbar := ui.RenderScrollbar(totalVisualLines, vpHeight, m.Viewport.TopLine, m.Theme)
 	gutterW := ui.CalculateGutterWidth(totalLines)
 
 	// Modal & status information
@@ -760,6 +919,11 @@ func (m *Model) View() string {
 
 		lineStr := gutterCell + contentCell + strings.Repeat(" ", pad) + sbCell
 		screenLines = append(screenLines, lineStr)
+	}
+
+	if m.SettingsOpen && m.SettingsState != nil {
+		modalBox := ui.RenderSettingsModal(m.SettingsState, m.Theme, m.Width, vpHeight)
+		screenLines = ui.OverlayModal(screenLines, modalBox, m.Width, vpHeight)
 	}
 
 	searchCur := 0

@@ -33,4 +33,3 @@ func TestCursor_ANSISequences(t *testing.T) {
 		t.Errorf("Position expected %q, got %q", "\x1b[4;6H", pos)
 	}
 }
-

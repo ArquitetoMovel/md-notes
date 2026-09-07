@@ -124,6 +124,7 @@ func Execute(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer,
 	}
 
 	var programOpts []tea.ProgramOption
+	programOpts = append(programOpts, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	var ttyCloser io.Closer
 
 	if isPipe {

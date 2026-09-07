@@ -451,3 +451,36 @@ func TestEngine_SearchMode_NavigationKeys(t *testing.T) {
 		t.Errorf("Esperado navDirection 'backward' para 'N', obtido '%s'", navDirection)
 	}
 }
+
+func TestEngine_PageScrollingKeys(t *testing.T) {
+	buf := buffer.NewEmptyBuffer("teste.md")
+	for i := 0; i < 100; i++ {
+		buf.Lines = append(buf.Lines, buffer.NewLine("Linha de teste", buffer.EndingLF))
+	}
+	engine := NewEngine(buf)
+	buf.Cursor = buffer.Cursor{Line: 0, Col: 0}
+
+	// ctrl+d moves down 12 lines
+	engine.HandleKey(makeKey("ctrl+d"))
+	if buf.Cursor.Line != 12 {
+		t.Errorf("Esperado Cursor.Line 12 após ctrl+d, obtido %d", buf.Cursor.Line)
+	}
+
+	// pagedown moves down 12 lines
+	engine.HandleKey(makeKey("pagedown"))
+	if buf.Cursor.Line != 24 {
+		t.Errorf("Esperado Cursor.Line 24 após pagedown, obtido %d", buf.Cursor.Line)
+	}
+
+	// ctrl+u moves up 12 lines
+	engine.HandleKey(makeKey("ctrl+u"))
+	if buf.Cursor.Line != 12 {
+		t.Errorf("Esperado Cursor.Line 12 após ctrl+u, obtido %d", buf.Cursor.Line)
+	}
+
+	// pageup moves up 12 lines
+	engine.HandleKey(makeKey("pageup"))
+	if buf.Cursor.Line != 0 {
+		t.Errorf("Esperado Cursor.Line 0 após pageup, obtido %d", buf.Cursor.Line)
+	}
+}

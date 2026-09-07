@@ -184,4 +184,3 @@ func TestApp_MarkdownHeadings_Formatted(t *testing.T) {
 		t.Errorf("expected marker and heading spans, got: %+v", tl.Spans)
 	}
 }
-
