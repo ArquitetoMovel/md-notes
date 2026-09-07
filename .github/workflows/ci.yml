@@ -8,14 +8,12 @@ on:
 
 jobs:
   test:
-    name: Test on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Test on ubuntu-latest
+    runs-on: ubuntu-latest
     env:
       MDN_RENDER_THRESHOLD_MS: "30"
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
       - name: Checkout repository
@@ -34,11 +32,22 @@ jobs:
         run: go test -v ./...
 
   cross-compile:
-    name: Multi-Platform Build Verification
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-latest
     env:
       MDN_RENDER_THRESHOLD_MS: "30"
     needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -49,11 +58,20 @@ jobs:
           go-version: "stable"
           cache: true
 
-      - name: Test Multi-Platform Build & Package
-        run: go run scripts/build.go -package
+      - name: Build binary
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        shell: bash
+        run: |
+          mkdir -p dist
+          ext=""
+          if [ "${{ matrix.goos }}" = "windows" ]; then ext=".exe"; fi
+          go build -trimpath -ldflags="-s -w" -o "dist/mdn-${{ matrix.goos }}-${{ matrix.goarch }}${ext}" ./cmd/mdn
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mdn-multiplatform-binaries
-          path: dist/
+          name: mdn-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/mdn-${{ matrix.goos }}-${{ matrix.goarch }}*
