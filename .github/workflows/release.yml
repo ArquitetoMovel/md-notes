@@ -10,24 +10,23 @@ permissions:
 
 jobs:
   goreleaser:
-    name: Build & Publish Release
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Go
+      - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "stable"
+          go-version-file: go.mod
           cache: true
 
-      - name: Run Tests
-        run: go test -v ./...
+      - name: Run tests
+        run: go test ./...
 
-      - name: Run GoReleaser
+      - name: Build and Release
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
