@@ -516,14 +516,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		m.mouseDragging = false
-		if msg.Type == tea.KeyCtrlC || msg.String() == "ctrl+c" {
-			if m.Buffer.IsDirty {
-				m.StatusMsg = "E37: Alterações não salvas. Use :w para salvar ou :q! para forçar a saída"
-				return m, nil
-			}
-			m.Quitting = true
-			return m, tea.Quit
-		}
 
 		// Global F2 toggle shortcut
 		if msg.Type == tea.KeyF2 || msg.String() == "f2" {
@@ -563,6 +555,28 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			default:
 				return m, nil
 			}
+		}
+
+		if msg.Type == tea.KeyCtrlC || msg.String() == "ctrl+c" {
+			if m.Vim != nil && m.Vim.State.Selection != nil {
+				copied, err := m.Vim.CopySelection()
+				if err != nil {
+					m.StatusMsg = "Não foi possível copiar para a área de transferência"
+					return m, nil
+				}
+				if copied {
+					m.Vim.SetMode(vim.ModeNormal)
+					m.mouseSelection = false
+					m.StatusMsg = "Texto copiado"
+					return m, nil
+				}
+			}
+			if m.Buffer.IsDirty {
+				m.StatusMsg = "E37: Alterações não salvas. Use :w para salvar ou :q! para forçar a saída"
+				return m, nil
+			}
+			m.Quitting = true
+			return m, tea.Quit
 		}
 
 		if m.Vim != nil {

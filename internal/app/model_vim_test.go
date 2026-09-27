@@ -1,6 +1,7 @@
 package app_test
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -12,6 +13,79 @@ import (
 	"md-notes/internal/ui"
 	"md-notes/internal/vim"
 )
+
+type appClipboardProvider struct {
+	text     string
+	writeErr error
+	writes   int
+}
+
+func (p *appClipboardProvider) ReadAll() (string, error) { return p.text, nil }
+func (p *appClipboardProvider) WriteAll(text string) error {
+	p.writes++
+	if p.writeErr != nil {
+		return p.writeErr
+	}
+	p.text = text
+	return nil
+}
+
+func TestApp_CopyShortcutAndQuitFallback(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name       string
+		selection  bool
+		dirty      bool
+		writeErr   error
+		wantStatus string
+		wantQuit   bool
+	}{
+		{"copy selection", true, false, nil, "Texto copiado", false},
+		{"copy failure", true, false, errors.New("unavailable"), "Não foi possível copiar para a área de transferência", false},
+		{"quit clean", false, false, nil, "", true},
+		{"protect dirty", false, true, nil, "E37", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			buf := buffer.NewEmptyBuffer("copy.md")
+			buf.Lines = []buffer.Line{
+				buffer.NewLine("# **é**", buffer.EndingCRLF),
+				buffer.NewLine("| 🙂 |", buffer.EndingNone),
+			}
+			buf.IsDirty = tc.dirty
+			m := app.NewModel(buf, nil)
+			provider := &appClipboardProvider{writeErr: tc.writeErr}
+			m.Vim.Clipboard = vim.NewClipboardWithProvider(provider)
+			if tc.selection {
+				m.Vim.State.CurrentMode = vim.ModeVisualChar
+				m.Vim.State.Selection = &vim.Selection{
+					Start: vim.Position{Line: 0, Col: 0},
+					End:   vim.Position{Line: 1, Col: 4},
+					Type:  vim.ModeVisualChar,
+				}
+			}
+			_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+			if m.Quitting != tc.wantQuit || (cmd != nil) != tc.wantQuit {
+				t.Fatalf("quit = %t, cmd = %v; want quit %t", m.Quitting, cmd != nil, tc.wantQuit)
+			}
+			if !strings.Contains(m.StatusMsg, tc.wantStatus) {
+				t.Fatalf("status = %q, want %q", m.StatusMsg, tc.wantStatus)
+			}
+			if tc.selection {
+				if provider.writes != 1 || buf.IsDirty != tc.dirty || buf.Lines[0].String() != "# **é**" {
+					t.Fatalf("copy changed document or write count: writes=%d dirty=%t", provider.writes, buf.IsDirty)
+				}
+				if tc.writeErr == nil {
+					if provider.text != "# **é**\r\n| 🙂 |" || m.Vim.State.Selection != nil {
+						t.Fatalf("copy content/selection mismatch: %q, %+v", provider.text, m.Vim.State.Selection)
+					}
+				} else if m.Vim.State.Selection == nil || provider.text != "" {
+					t.Fatal("failed copy lost selection or reported content")
+				}
+			}
+		})
+	}
+}
 
 func makeKeyMsg(str string) tea.KeyMsg {
 	if str == "esc" {
@@ -65,6 +139,15 @@ func TestApp_MouseSelectionLifecycle(t *testing.T) {
 	if m.Vim.State.Selection == nil || m.Vim.State.Selection.Start.Line != 3 || m.Vim.State.Selection.End.Line != 4 {
 		t.Fatalf("scroll adjusted selection incorrectly: %+v", m.Vim.State.Selection)
 	}
+	provider := &appClipboardProvider{}
+	m.Vim.Clipboard = vim.NewClipboardWithProvider(provider)
+	m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if provider.text != "fourth\nfif" || m.Vim.State.Selection != nil || buf.IsDirty {
+		t.Fatalf("mouse copy changed state: text=%q selection=%+v dirty=%t", provider.text, m.Vim.State.Selection, buf.IsDirty)
+	}
+	m.Update(tea.MouseMsg{X: gutter, Y: 0, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	m.Update(tea.MouseMsg{X: gutter + 2, Y: 1, Button: tea.MouseButtonLeft, Action: tea.MouseActionMotion})
+	m.Update(tea.MouseMsg{X: gutter + 2, Y: 1, Action: tea.MouseActionRelease})
 	m.Update(makeKeyMsg("esc"))
 	if m.Vim.State.Selection != nil || buf.IsDirty {
 		t.Fatal("Esc did not cancel selection cleanly")

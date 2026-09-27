@@ -301,6 +301,35 @@ func TestEngine_VisualSelection(t *testing.T) {
 	}
 }
 
+func TestEngine_CopySelection(t *testing.T) {
+	t.Parallel()
+	buf := buffer.NewEmptyBuffer("copy.md")
+	buf.Lines = []buffer.Line{
+		buffer.NewLine("# **é**", buffer.EndingCRLF),
+		buffer.NewLine("| 🙂 |", buffer.EndingNone),
+	}
+	engine := NewEngine(buf)
+	provider := &fakeClipboardProvider{}
+	engine.Clipboard = NewClipboardWithProvider(provider)
+	engine.State.CurrentMode = ModeVisualChar
+	engine.State.Selection = &Selection{
+		Start: Position{Line: 0, Col: 0},
+		End:   Position{Line: 1, Col: 4},
+		Type:  ModeVisualChar,
+	}
+	before := len(engine.History.snapshots)
+	copied, err := engine.CopySelection()
+	if err != nil || !copied {
+		t.Fatalf("CopySelection = (%t, %v)", copied, err)
+	}
+	if provider.text != "# **é**\r\n| 🙂 |" || provider.writes != 1 {
+		t.Fatalf("raw Markdown copy = %q (%d writes)", provider.text, provider.writes)
+	}
+	if buf.IsDirty || len(engine.History.snapshots) != before || engine.State.Selection == nil {
+		t.Fatal("copy changed buffer, history, or selection")
+	}
+}
+
 // Testes de Modo de Busca (F06)
 func TestEngine_SearchMode_ForwardAndBackward(t *testing.T) {
 	buf := buffer.NewEmptyBuffer("teste.md")

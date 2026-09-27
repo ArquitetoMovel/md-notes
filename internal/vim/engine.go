@@ -1,6 +1,7 @@
 package vim
 
 import (
+	"fmt"
 	"strings"
 	"unicode"
 
@@ -793,6 +794,68 @@ func (e *Engine) yankVisualSelection() {
 	}
 	text, isLineWise := e.getVisualText()
 	e.Clipboard.Set(text, isLineWise)
+}
+
+// CopySelection writes the selected raw Markdown to the system clipboard.
+// It leaves the selection and buffer untouched so the caller can keep them on failure.
+func (e *Engine) CopySelection() (bool, error) {
+	text, lineWise := e.selectedTextRaw()
+	if text == "" {
+		return false, nil
+	}
+	if err := e.Clipboard.WriteStrict(text, lineWise); err != nil {
+		return false, fmt.Errorf("copy selected text: %w", err)
+	}
+	return true, nil
+}
+
+func (e *Engine) selectedTextRaw() (string, bool) {
+	if e.State.Selection == nil || e.Buffer == nil {
+		return "", false
+	}
+	start, end := e.State.Selection.Normalized()
+	if start.Line < 0 || end.Line >= e.Buffer.LineCount() || start.Col < 0 || end.Col < 0 {
+		return "", false
+	}
+	switch e.State.Selection.Type {
+	case ModeVisualChar:
+		var sb strings.Builder
+		for i := start.Line; i <= end.Line; i++ {
+			line, err := e.Buffer.GetLine(i)
+			if err != nil {
+				return "", false
+			}
+			from, to := 0, len(line.Runes)
+			if i == start.Line {
+				from = min(start.Col, len(line.Runes))
+			}
+			if i == end.Line {
+				to = min(end.Col+1, len(line.Runes))
+			}
+			if from > to {
+				return "", false
+			}
+			sb.WriteString(string(line.Runes[from:to]))
+			if i < end.Line {
+				sb.WriteString(string(line.Ending))
+			}
+		}
+		return sb.String(), false
+	case ModeVisualLine:
+		var sb strings.Builder
+		for i := start.Line; i <= end.Line; i++ {
+			line, err := e.Buffer.GetLine(i)
+			if err != nil {
+				return "", false
+			}
+			sb.WriteString(line.RawString())
+		}
+		return sb.String(), true
+	case ModeVisualBlock:
+		return e.getVisualText()
+	default:
+		return "", false
+	}
 }
 
 func (e *Engine) deleteVisualSelection() {
