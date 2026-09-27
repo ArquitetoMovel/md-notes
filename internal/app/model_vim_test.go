@@ -9,6 +9,7 @@ import (
 	"md-notes/internal/app"
 	"md-notes/internal/buffer"
 	"md-notes/internal/markdown"
+	"md-notes/internal/ui"
 	"md-notes/internal/vim"
 )
 
@@ -25,6 +26,53 @@ func makeKeyMsg(str string) tea.KeyMsg {
 	return tea.KeyMsg{
 		Type:  tea.KeyRunes,
 		Runes: []rune(str),
+	}
+}
+
+func TestApp_MouseSelectionLifecycle(t *testing.T) {
+	t.Parallel()
+	buf := buffer.NewEmptyBuffer("mouse.md")
+	for i, text := range []string{"first", "second", "third", "fourth", "fifth", "sixth"} {
+		if i == 0 {
+			if err := buf.SetLine(0, buffer.NewLine(text, buffer.EndingLF)); err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			buf.InsertLine(i, buffer.NewLine(text, buffer.EndingLF))
+		}
+	}
+	buf.IsDirty = false
+	m := app.NewModel(buf, nil)
+	m.Viewport.SetDimensions(20, 3)
+	m.Viewport.Scrolloff = 0
+	gutter := ui.CalculateGutterWidth(buf.LineCount())
+	m.Update(tea.MouseMsg{X: gutter + 1, Y: 0, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	m.Update(tea.MouseMsg{X: gutter + 2, Y: 1, Button: tea.MouseButtonLeft, Action: tea.MouseActionMotion})
+	m.Update(tea.MouseMsg{X: gutter + 2, Y: 1, Action: tea.MouseActionRelease})
+	if m.Vim.State.Selection == nil || m.Vim.State.Selection.Start != (vim.Position{Line: 0, Col: 1}) || m.Vim.State.Selection.End != (vim.Position{Line: 1, Col: 2}) {
+		t.Fatalf("unexpected mouse selection: %+v", m.Vim.State.Selection)
+	}
+	if buf.IsDirty || buf.Lines[0].String() != "first" {
+		t.Fatal("selection modified buffer")
+	}
+	m.Update(tea.MouseMsg{X: gutter + 3, Y: 2, Button: tea.MouseButtonWheelDown, Action: tea.MouseActionPress})
+	if m.Viewport.TopLine != 3 || m.Vim.State.Selection == nil {
+		t.Fatalf("wheel lost selection or scroll: top=%d selection=%+v", m.Viewport.TopLine, m.Vim.State.Selection)
+	}
+	m.Update(tea.MouseMsg{X: gutter, Y: 0, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	m.Update(tea.MouseMsg{X: gutter + 2, Y: 1, Button: tea.MouseButtonLeft, Action: tea.MouseActionMotion})
+	m.Update(tea.MouseMsg{X: gutter + 2, Y: 1, Action: tea.MouseActionRelease})
+	if m.Vim.State.Selection == nil || m.Vim.State.Selection.Start.Line != 3 || m.Vim.State.Selection.End.Line != 4 {
+		t.Fatalf("scroll adjusted selection incorrectly: %+v", m.Vim.State.Selection)
+	}
+	m.Update(makeKeyMsg("esc"))
+	if m.Vim.State.Selection != nil || buf.IsDirty {
+		t.Fatal("Esc did not cancel selection cleanly")
+	}
+	m.Update(tea.MouseMsg{X: gutter, Y: 0, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	m.Update(tea.MouseMsg{X: gutter, Y: 0, Action: tea.MouseActionRelease})
+	if m.Vim.State.Selection != nil || m.Vim.State.CurrentMode != vim.ModeNormal {
+		t.Fatal("simple click left a visual selection")
 	}
 }
 

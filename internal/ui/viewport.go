@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"github.com/mattn/go-runewidth"
+
 	"md-notes/internal/buffer"
 )
 
@@ -57,8 +59,8 @@ func (v *Viewport) SetDimensions(w, h int) {
 func (v *Viewport) GetContentWidth(totalLines int) int {
 	gutterW := CalculateGutterWidth(totalLines)
 	contentW := v.Width - gutterW - 1
-	if contentW < 10 {
-		contentW = 10
+	if contentW < 1 {
+		contentW = 1
 	}
 	return contentW
 }
@@ -68,18 +70,11 @@ func CountVisualLinesForLine(line buffer.Line, contentWidth int, softWrap bool) 
 	if !softWrap {
 		return 1
 	}
-	rLen := line.Length()
-	if rLen == 0 {
+	// Every rune occupies at most two cells; short lines cannot wrap.
+	if line.Length()*2 <= contentWidth {
 		return 1
 	}
-	if contentWidth <= 0 {
-		contentWidth = 80
-	}
-	chunks := (rLen + contentWidth - 1) / contentWidth
-	if chunks < 1 {
-		return 1
-	}
-	return chunks
+	return len(WrapLogicalLine(0, line, contentWidth))
 }
 
 // TotalVisualLines returns the total count of visual lines across the entire buffer.
@@ -121,16 +116,13 @@ func (v *Viewport) CursorVisualRow(cursor buffer.Cursor, buf *buffer.Buffer) int
 		vRow += CountVisualLinesForLine(buf.Lines[i], contentW, true)
 	}
 
-	chunksCount := CountVisualLinesForLine(buf.Lines[curLine], contentW, true)
-	wrapIdx := 0
-	if contentW > 0 {
-		wrapIdx = cursor.Col / contentW
-	}
-	if wrapIdx >= chunksCount {
-		wrapIdx = chunksCount - 1
-	}
-	if wrapIdx < 0 {
-		wrapIdx = 0
+	chunks := WrapLogicalLine(curLine, buf.Lines[curLine], contentW)
+	wrapIdx := len(chunks) - 1
+	for i, chunk := range chunks {
+		if cursor.Col < chunk.EndCol || i == len(chunks)-1 {
+			wrapIdx = i
+			break
+		}
 	}
 	return vRow + wrapIdx
 }
@@ -154,14 +146,11 @@ func (v *Viewport) VisualRowToCursor(targetVRow int, buf *buffer.Buffer) buffer.
 	contentW := v.GetContentWidth(buf.LineCount())
 	currentVRow := 0
 	for i, line := range buf.Lines {
-		chunksCount := CountVisualLinesForLine(line, contentW, true)
+		chunks := WrapLogicalLine(i, line, contentW)
+		chunksCount := len(chunks)
 		if currentVRow+chunksCount > targetVRow {
 			wrapIdx := targetVRow - currentVRow
-			col := wrapIdx * contentW
-			if col > line.Length() {
-				col = line.Length()
-			}
-			return buffer.Cursor{Line: i, Col: col}
+			return buffer.Cursor{Line: i, Col: chunks[wrapIdx].StartCol}
 		}
 		currentVRow += chunksCount
 	}
@@ -320,10 +309,16 @@ func WrapLogicalLine(logicalIdx int, line buffer.Line, contentWidth int) []Visua
 	totalRunes := len(runes)
 	wrapIdx := 0
 
-	for start := 0; start < totalRunes; start += contentWidth {
-		end := start + contentWidth
-		if end > totalRunes {
-			end = totalRunes
+	for start := 0; start < totalRunes; {
+		end := start
+		cells := 0
+		for end < totalRunes {
+			width := runewidth.RuneWidth(runes[end])
+			if end > start && cells+width > contentWidth {
+				break
+			}
+			cells += width
+			end++
 		}
 		visualLines = append(visualLines, VisualLine{
 			LogicalLine: logicalIdx,
@@ -333,6 +328,7 @@ func WrapLogicalLine(logicalIdx int, line buffer.Line, contentWidth int) []Visua
 			EndCol:      end,
 		})
 		wrapIdx++
+		start = end
 	}
 
 	return visualLines
@@ -342,13 +338,44 @@ func WrapLogicalLine(logicalIdx int, line buffer.Line, contentWidth int) []Visua
 func LogicalToVisual(cursor buffer.Cursor, visualLines []VisualLine, gutterWidth int) VisualCoordinate {
 	for screenY, vLine := range visualLines {
 		if vLine.LogicalLine == cursor.Line {
-			if cursor.Col >= vLine.StartCol && (cursor.Col < vLine.EndCol || (cursor.Col == vLine.EndCol && vLine.WrapIndex == 0)) {
-				screenX := (cursor.Col - vLine.StartCol) + gutterWidth
+			if cursor.Col >= vLine.StartCol && (cursor.Col < vLine.EndCol || cursor.Col == vLine.EndCol && (screenY == len(visualLines)-1 || visualLines[screenY+1].LogicalLine != cursor.Line)) {
+				col := cursor.Col
+				if col > vLine.EndCol {
+					col = vLine.EndCol
+				}
+				screenX := runewidth.StringWidth(string([]rune(vLine.Text)[:col-vLine.StartCol])) + gutterWidth
 				return VisualCoordinate{ScreenY: screenY, ScreenX: screenX}
 			}
 		}
 	}
 	return VisualCoordinate{ScreenY: 0, ScreenX: gutterWidth}
+}
+
+// MouseToCursor maps a terminal cell to a valid logical cursor. The boolean is
+// false for rows outside the document viewport, including the status line.
+func (v *Viewport) MouseToCursor(x, y int, buf *buffer.Buffer) (buffer.Cursor, bool) {
+	if buf == nil || y < 0 || y >= v.Height {
+		return buffer.Cursor{}, false
+	}
+	visible := v.GetVisibleLines(buf)
+	if y >= len(visible) {
+		return buffer.Cursor{}, false
+	}
+	line := visible[y]
+	col := line.StartCol
+	cells := x - CalculateGutterWidth(buf.LineCount())
+	if cells > 0 {
+		used := 0
+		for _, r := range []rune(line.Text) {
+			width := runewidth.RuneWidth(r)
+			if cells < used+width {
+				break
+			}
+			used += width
+			col++
+		}
+	}
+	return buffer.Cursor{Line: line.LogicalLine, Col: col}, true
 }
 
 // GetVisibleLines computes the visual lines to render for the current viewport view.
