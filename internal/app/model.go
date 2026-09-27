@@ -503,6 +503,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.Buffer.Cursor = point
 		if msg.Action == tea.MouseActionPress {
+			m.StatusMsg = ""
 			m.mouseDragging = true
 			m.mouseSelection = true
 			m.Vim.State.CurrentMode = vim.ModeVisualChar
@@ -533,6 +534,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.mouseSelection = false
+			m.StatusMsg = ""
 			return m, nil
 		}
 
@@ -604,6 +606,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				m.mouseSelection = false
+				m.StatusMsg = ""
 				return m, nil
 			}
 			if m.Vim != nil && (m.Vim.State.CurrentMode == vim.ModeCommand || m.Vim.State.CurrentMode == vim.ModeSearch) {
@@ -612,10 +615,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if m.Vim != nil {
+			wasSelected := m.Vim.State.Selection != nil
 			m.mouseSelection = false
 			cmd, statusMsg := m.Vim.HandleKey(msg)
 			if statusMsg != "" {
 				m.StatusMsg = statusMsg
+			} else if wasSelected && m.Vim.State.Selection == nil {
+				m.StatusMsg = ""
 			}
 			if cmd != nil {
 				return m, cmd

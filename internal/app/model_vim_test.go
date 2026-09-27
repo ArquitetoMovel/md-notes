@@ -275,6 +275,61 @@ func TestApp_MouseSelectionLifecycle(t *testing.T) {
 	}
 }
 
+func TestApp_MouseClipboardPasteUTF8CRLF(t *testing.T) {
+	t.Parallel()
+	buf := buffer.NewEmptyBuffer("integration.md")
+	buf.Lines = []buffer.Line{
+		buffer.NewLine("# 界🙂 **forte**", buffer.EndingCRLF),
+		buffer.NewLine("| célula |", buffer.EndingNone),
+	}
+	original := buf.RawText()
+	m := app.NewModel(buf, nil)
+	m.Viewport.SetDimensions(18, 6)
+	m.Viewport.Scrolloff = 0
+	provider := &appClipboardProvider{}
+	m.Vim.Clipboard = vim.NewClipboardWithProvider(provider)
+	gutter := ui.CalculateGutterWidth(buf.LineCount())
+	selectText := func() {
+		visible := m.Viewport.GetVisibleLines(buf)
+		start := ui.LogicalToVisual(buffer.Cursor{Line: 0, Col: 2}, visible, gutter)
+		end := ui.LogicalToVisual(buffer.Cursor{Line: 1, Col: 4}, visible, gutter)
+		m.Update(tea.MouseMsg{X: start.ScreenX + 1, Y: start.ScreenY, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+		m.Update(tea.MouseMsg{X: end.ScreenX, Y: end.ScreenY, Button: tea.MouseButtonLeft, Action: tea.MouseActionMotion})
+		m.Update(tea.MouseMsg{X: end.ScreenX, Y: end.ScreenY, Action: tea.MouseActionRelease})
+	}
+	selectText()
+	if m.Vim.State.Selection == nil || m.Vim.State.Selection.Start != (vim.Position{Line: 0, Col: 2}) || m.Vim.State.Selection.End != (vim.Position{Line: 1, Col: 4}) {
+		t.Fatalf("Unicode mouse selection = %+v", m.Vim.State.Selection)
+	}
+	selectedView := m.View()
+	if !strings.Contains(selectedView, "-- VISUAL --") || !strings.Contains(selectedView, m.Theme.Selection.Render("界")) {
+		t.Fatal("selection highlight or status missing after release")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if provider.text != "界🙂 **forte**\r\n| cél" || m.Vim.State.Selection != nil || buf.IsDirty || !strings.Contains(m.View(), "Texto copiado") {
+		t.Fatalf("copy state: clipboard=%q selection=%+v dirty=%t status=%q", provider.text, m.Vim.State.Selection, buf.IsDirty, m.StatusMsg)
+	}
+	selectText()
+	if m.StatusMsg != "" {
+		t.Fatalf("new selection retained stale status: %q", m.StatusMsg)
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("é\r\n# novo"), Paste: true})
+	if got := buf.RawText(); got != "# é\r\n# novoula |" || !buf.IsDirty || m.Vim.State.Selection != nil || buf.Cursor != (buffer.Cursor{Line: 1, Col: 6}) {
+		t.Fatalf("paste state: text=%q cursor=%+v dirty=%t selection=%+v", got, buf.Cursor, buf.IsDirty, m.Vim.State.Selection)
+	}
+	if view := m.View(); !strings.Contains(view, "[+]") || strings.Contains(view, "-- VISUAL --") {
+		t.Fatal("paste did not refresh dirty indicator or selection status")
+	}
+	m.Update(makeKeyMsg("u"))
+	if buf.RawText() != original || buf.IsDirty {
+		t.Fatalf("undo = %q, dirty=%t", buf.RawText(), buf.IsDirty)
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
+	if buf.RawText() != "# é\r\n# novoula |" || !buf.IsDirty {
+		t.Fatalf("redo = %q, dirty=%t", buf.RawText(), buf.IsDirty)
+	}
+}
+
 // Test Bubble Tea key delegation to Vim Engine (Insert Mode, View indicator)
 func TestApp_VimKeyDelegation_InsertMode(t *testing.T) {
 	buf := buffer.NewEmptyBuffer("teste.md")
