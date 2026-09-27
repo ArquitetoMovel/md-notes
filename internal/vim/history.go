@@ -58,6 +58,10 @@ func (h *History) Push(buf *buffer.Buffer) {
 		FilePath: buf.FilePath,
 	}
 
+	h.pushSnapshot(snap)
+}
+
+func (h *History) pushSnapshot(snap Snapshot) {
 	// Truncate any redo branch if we pushed after an undo
 	if h.current >= 0 && h.current < len(h.snapshots)-1 {
 		h.snapshots = h.snapshots[:h.current+1]

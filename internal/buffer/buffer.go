@@ -2,14 +2,18 @@ package buffer
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 var (
 	ErrLineIndexOutOfBounds = errors.New("line index out of bounds")
+	ErrInvalidRange         = errors.New("invalid buffer range")
+	ErrInvalidUTF8          = errors.New("invalid UTF-8 text")
 )
 
 // Cursor represents the cursor coordinate within the buffer (0-indexed internally).
@@ -220,6 +224,66 @@ func (b *Buffer) InsertText(text string) {
 			b.InsertRune(r)
 		}
 	}
+}
+
+// ReplaceRange replaces the half-open rune interval [start, end) in one mutation.
+// New logical lines use the insertion line's ending; the surviving suffix keeps
+// its original ending. Invalid input leaves the buffer unchanged.
+func (b *Buffer) ReplaceRange(start, end Cursor, text string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if !utf8.ValidString(text) {
+		return ErrInvalidUTF8
+	}
+	if start.Line < 0 || start.Line >= len(b.Lines) || end.Line < start.Line || end.Line >= len(b.Lines) ||
+		start.Col < 0 || end.Col < 0 || start.Col > len(b.Lines[start.Line].Runes) ||
+		end.Col > len(b.Lines[end.Line].Runes) ||
+		(start.Line == end.Line && start.Col > end.Col) {
+		return fmt.Errorf("replace range %v..%v: %w", start, end, ErrInvalidRange)
+	}
+
+	text = strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n")
+	parts := strings.Split(text, "\n")
+	ending := b.Lines[start.Line].Ending
+	if ending != EndingLF && ending != EndingCRLF {
+		ending = EndingLF
+		for _, line := range b.Lines {
+			if line.Ending == EndingLF || line.Ending == EndingCRLF {
+				ending = line.Ending
+				break
+			}
+		}
+	}
+
+	prefix := b.Lines[start.Line].Runes[:start.Col]
+	suffix := b.Lines[end.Line].Runes[end.Col:]
+	replacement := make([]Line, 0, len(parts))
+	for i, part := range parts {
+		runes := make([]rune, 0, len(prefix)+len([]rune(part))+len(suffix))
+		if i == 0 {
+			runes = append(runes, prefix...)
+		}
+		runes = append(runes, []rune(part)...)
+		lineEnding := ending
+		if i == len(parts)-1 {
+			runes = append(runes, suffix...)
+			lineEnding = b.Lines[end.Line].Ending
+		}
+		replacement = append(replacement, Line{Runes: runes, Ending: lineEnding})
+	}
+	newLines := make([]Line, 0, len(b.Lines)-(end.Line-start.Line+1)+len(replacement))
+	newLines = append(newLines, b.Lines[:start.Line]...)
+	newLines = append(newLines, replacement...)
+	newLines = append(newLines, b.Lines[end.Line+1:]...)
+
+	b.Lines = newLines
+	b.Cursor = Cursor{Line: start.Line + len(parts) - 1, Col: len([]rune(parts[len(parts)-1]))}
+	if len(parts) == 1 {
+		b.Cursor.Col += start.Col
+	}
+	b.IsDirty = true
+	return nil
 }
 
 // RawText returns the entire buffer content serialized as a single string.

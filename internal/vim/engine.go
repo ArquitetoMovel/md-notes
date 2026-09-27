@@ -1,12 +1,22 @@
 package vim
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"md-notes/internal/buffer"
+)
+
+var (
+	ErrPasteBlocked     = errors.New("paste is unavailable in this mode")
+	ErrPasteEmpty       = errors.New("clipboard has no text")
+	ErrPasteRead        = errors.New("cannot read clipboard")
+	ErrPasteLimit       = errors.New("paste exceeds character or line limit")
+	ErrPasteInvalidUTF8 = errors.New("paste contains invalid UTF-8")
 )
 
 // Engine is the central Vim modal editing state machine.
@@ -807,6 +817,86 @@ func (e *Engine) CopySelection() (bool, error) {
 		return false, fmt.Errorf("copy selected text: %w", err)
 	}
 	return true, nil
+}
+
+// PasteClipboard reads plain text strictly and applies it as one edit.
+func (e *Engine) PasteClipboard() error {
+	if !e.canPaste() {
+		return ErrPasteBlocked
+	}
+	text, err := e.Clipboard.ReadStrict()
+	if err != nil {
+		return errors.Join(ErrPasteRead, err)
+	}
+	return e.PasteText(text)
+}
+
+// PasteText inserts literal text or replaces the current visual selection.
+// Validation completes before the buffer or history is changed.
+func (e *Engine) PasteText(text string) error {
+	if !e.canPaste() {
+		return ErrPasteBlocked
+	}
+	if !utf8.ValidString(text) {
+		return ErrPasteInvalidUTF8
+	}
+	if text == "" {
+		return ErrPasteEmpty
+	}
+	text = strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n")
+	if utf8.RuneCountInString(text) > 10000 || strings.Count(text, "\n")+1 > 200 {
+		return ErrPasteLimit
+	}
+
+	start, end := e.pasteRange()
+	before := Snapshot{
+		Lines:    CloneLines(e.Buffer.Lines),
+		Cursor:   e.Buffer.Cursor,
+		IsDirty:  e.Buffer.IsDirty,
+		FilePath: e.Buffer.FilePath,
+	}
+	if err := e.Buffer.ReplaceRange(start, end, text); err != nil {
+		return fmt.Errorf("paste text: %w", err)
+	}
+	if e.insertChanged {
+		e.History.pushSnapshot(before)
+		e.insertChanged = false
+	}
+	e.History.Push(e.Buffer)
+	if e.State.Selection != nil {
+		e.SetMode(ModeNormal)
+	}
+	return nil
+}
+
+func (e *Engine) canPaste() bool {
+	if e == nil || e.Buffer == nil || e.History == nil {
+		return false
+	}
+	if e.State.CurrentMode == ModeCommand || e.State.CurrentMode == ModeSearch {
+		return false
+	}
+	return e.State.CurrentMode == ModeInsert || e.State.Selection != nil
+}
+
+func (e *Engine) pasteRange() (buffer.Cursor, buffer.Cursor) {
+	if e.State.Selection == nil {
+		return e.Buffer.Cursor, e.Buffer.Cursor
+	}
+	start, end := e.State.Selection.Normalized()
+	first := buffer.Cursor{Line: start.Line, Col: start.Col}
+	last := buffer.Cursor{Line: end.Line, Col: end.Col}
+	if e.State.Selection.Type == ModeVisualLine {
+		first.Col = 0
+		if end.Line+1 < e.Buffer.LineCount() {
+			last = buffer.Cursor{Line: end.Line + 1, Col: 0}
+		} else if end.Line >= 0 && end.Line < e.Buffer.LineCount() {
+			last.Col = e.Buffer.Lines[end.Line].Length()
+		}
+	} else if end.Line >= 0 && end.Line < e.Buffer.LineCount() && end.Col < e.Buffer.Lines[end.Line].Length() {
+		last.Col++
+	}
+	return first, last
 }
 
 func (e *Engine) selectedTextRaw() (string, bool) {

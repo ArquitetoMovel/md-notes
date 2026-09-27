@@ -1,8 +1,10 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -516,6 +518,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		m.mouseDragging = false
+		if msg.Paste {
+			if m.SettingsOpen || m.Vim == nil {
+				return m, nil
+			}
+			for _, r := range msg.Runes {
+				if !utf8.ValidRune(r) || r == utf8.RuneError {
+					m.StatusMsg = pasteStatus(vim.ErrPasteInvalidUTF8)
+					return m, nil
+				}
+			}
+			if err := m.Vim.PasteText(string(msg.Runes)); err != nil {
+				m.StatusMsg = pasteStatus(err)
+				return m, nil
+			}
+			m.mouseSelection = false
+			return m, nil
+		}
 
 		// Global F2 toggle shortcut
 		if msg.Type == tea.KeyF2 || msg.String() == "f2" {
@@ -578,6 +597,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Quitting = true
 			return m, tea.Quit
 		}
+		if msg.Type == tea.KeyCtrlV || msg.String() == "ctrl+v" {
+			if m.Vim != nil && (m.Vim.State.CurrentMode == vim.ModeInsert || m.Vim.State.Selection != nil) {
+				if err := m.Vim.PasteClipboard(); err != nil {
+					m.StatusMsg = pasteStatus(err)
+					return m, nil
+				}
+				m.mouseSelection = false
+				return m, nil
+			}
+			if m.Vim != nil && (m.Vim.State.CurrentMode == vim.ModeCommand || m.Vim.State.CurrentMode == vim.ModeSearch) {
+				return m, nil
+			}
+		}
 
 		if m.Vim != nil {
 			m.mouseSelection = false
@@ -593,6 +625,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func pasteStatus(err error) string {
+	switch {
+	case errors.Is(err, vim.ErrPasteEmpty):
+		return "Área de transferência sem texto para colar"
+	case errors.Is(err, vim.ErrPasteRead):
+		return "Não foi possível ler a área de transferência"
+	case errors.Is(err, vim.ErrPasteLimit):
+		return "Texto para colar excede 10.000 caracteres ou 200 linhas"
+	case errors.Is(err, vim.ErrPasteInvalidUTF8), errors.Is(err, buffer.ErrInvalidUTF8):
+		return "Texto para colar contém UTF-8 inválido"
+	case errors.Is(err, vim.ErrPasteBlocked):
+		return ""
+	default:
+		return "Não foi possível colar o texto"
+	}
 }
 
 func isLineInCodeBlock(lines []buffer.Line, targetLineIdx int) (bool, string) {

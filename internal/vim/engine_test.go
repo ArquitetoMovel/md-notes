@@ -1,12 +1,126 @@
 package vim
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"md-notes/internal/buffer"
 )
+
+func TestEngine_PasteModesAndLimits(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		text    string
+		wantErr error
+	}{
+		{"10000 runes", strings.Repeat("é", 10000), nil},
+		{"10001 runes", strings.Repeat("é", 10001), ErrPasteLimit},
+		{"200 lines", strings.Repeat("a\n", 199) + "a", nil},
+		{"201 lines", strings.Repeat("a\n", 200) + "a", ErrPasteLimit},
+		{"invalid UTF-8", string([]byte{0xff}), ErrPasteInvalidUTF8},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			buf := buffer.NewEmptyBuffer("paste.md")
+			engine := NewEngine(buf)
+			engine.SetMode(ModeInsert)
+			before := buf.RawText()
+			count := engine.History.Count()
+			err := engine.PasteText(tc.text)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("PasteText error = %v, want %v", err, tc.wantErr)
+			}
+			if tc.wantErr != nil {
+				if buf.RawText() != before || buf.IsDirty || engine.History.Count() != count {
+					t.Fatal("rejected paste changed buffer or history")
+				}
+			} else if !buf.IsDirty || engine.History.Count() != count+1 {
+				t.Fatal("accepted paste missing mutation or checkpoint")
+			}
+		})
+	}
+	t.Run("literal selected text", func(t *testing.T) {
+		t.Parallel()
+		buf := buffer.NewEmptyBuffer("paste.md")
+		buf.Lines[0] = buffer.NewLine("ABCDE", buffer.EndingNone)
+		engine := NewEngine(buf)
+		engine.SetMode(ModeVisualChar)
+		engine.State.Selection = &Selection{Start: Position{0, 1}, End: Position{0, 2}, Type: ModeVisualChar}
+		if err := engine.PasteText("#\n:q\ndd\x1b"); err != nil {
+			t.Fatal(err)
+		}
+		if got := buf.RawText(); got != "A#\n:q\ndd\x1bDE" || engine.State.CurrentMode != ModeNormal {
+			t.Fatalf("literal replacement = %q; mode=%v", got, engine.State.CurrentMode)
+		}
+	})
+	for _, mode := range []Mode{ModeNormal, ModeCommand, ModeSearch} {
+		t.Run(mode.String()+" blocked", func(t *testing.T) {
+			t.Parallel()
+			buf := buffer.NewEmptyBuffer("paste.md")
+			engine := NewEngine(buf)
+			engine.SetMode(mode)
+			if err := engine.PasteText("dd\n:q"); !errors.Is(err, ErrPasteBlocked) || buf.IsDirty {
+				t.Fatalf("blocked paste = %v, dirty=%t", err, buf.IsDirty)
+			}
+		})
+	}
+	t.Run("normal ctrl-v remains visual block", func(t *testing.T) {
+		t.Parallel()
+		engine := NewEngine(buffer.NewEmptyBuffer("paste.md"))
+		engine.HandleKey(makeKey("ctrl+v"))
+		if engine.State.CurrentMode != ModeVisualBlock {
+			t.Fatalf("mode = %v, want Visual Block", engine.State.CurrentMode)
+		}
+	})
+}
+
+func TestEngine_PasteAtomicUndo(t *testing.T) {
+	t.Parallel()
+	t.Run("pending insert", func(t *testing.T) {
+		t.Parallel()
+		buf := buffer.NewEmptyBuffer("paste.md")
+		buf.Lines[0] = buffer.NewLine("base", buffer.EndingNone)
+		engine := NewEngine(buf)
+		engine.HandleKey(makeKey("i"))
+		engine.HandleKey(makeKey("X"))
+		if err := engine.PasteText("one\ntwo"); err != nil {
+			t.Fatal(err)
+		}
+		engine.HandleKey(makeKey("esc"))
+		if engine.History.Count() != 3 || buf.RawText() != "Xone\ntwobase" {
+			t.Fatalf("paste = %q, checkpoints=%d", buf.RawText(), engine.History.Count())
+		}
+		engine.HandleKey(makeKey("u"))
+		if buf.RawText() != "Xbase" {
+			t.Fatalf("undo removed pending typing: %q", buf.RawText())
+		}
+		engine.HandleKey(makeKey("ctrl+r"))
+		if buf.RawText() != "Xone\ntwobase" {
+			t.Fatalf("redo did not restore paste: %q", buf.RawText())
+		}
+	})
+	t.Run("selection", func(t *testing.T) {
+		t.Parallel()
+		buf := buffer.NewEmptyBuffer("paste.md")
+		buf.Lines[0] = buffer.NewLine("abcde", buffer.EndingNone)
+		engine := NewEngine(buf)
+		engine.SetMode(ModeVisualChar)
+		engine.State.Selection = &Selection{Start: Position{0, 1}, End: Position{0, 3}, Type: ModeVisualChar}
+		if err := engine.PasteText("Z"); err != nil {
+			t.Fatal(err)
+		}
+		if buf.RawText() != "aZe" || engine.State.Selection != nil {
+			t.Fatalf("replacement = %q selection=%+v", buf.RawText(), engine.State.Selection)
+		}
+		engine.HandleKey(makeKey("u"))
+		if buf.RawText() != "abcde" {
+			t.Fatalf("undo replacement = %q", buf.RawText())
+		}
+	})
+}
 
 func makeKey(str string) tea.KeyMsg {
 	if str == "esc" {

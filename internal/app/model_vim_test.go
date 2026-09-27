@@ -16,11 +16,12 @@ import (
 
 type appClipboardProvider struct {
 	text     string
+	readErr  error
 	writeErr error
 	writes   int
 }
 
-func (p *appClipboardProvider) ReadAll() (string, error) { return p.text, nil }
+func (p *appClipboardProvider) ReadAll() (string, error) { return p.text, p.readErr }
 func (p *appClipboardProvider) WriteAll(text string) error {
 	p.writes++
 	if p.writeErr != nil {
@@ -82,6 +83,121 @@ func TestApp_CopyShortcutAndQuitFallback(t *testing.T) {
 				} else if m.Vim.State.Selection == nil || provider.text != "" {
 					t.Fatal("failed copy lost selection or reported content")
 				}
+			}
+		})
+	}
+}
+
+func TestApp_PasteRouting(t *testing.T) {
+	t.Parallel()
+	t.Run("bracketed paste takes priority and undoes once", func(t *testing.T) {
+		t.Parallel()
+		buf := buffer.NewEmptyBuffer("paste.md")
+		m := app.NewModel(buf, nil)
+		m.Update(makeKeyMsg("i"))
+		payload := "# title\n:q dd\x1b"
+		m.Update(tea.KeyMsg{Type: tea.KeyCtrlC, Runes: []rune(payload), Paste: true})
+		if !buf.IsDirty || !strings.HasPrefix(buf.RawText(), payload) || m.Quitting || m.Vim.History.Count() != 2 {
+			t.Fatalf("paste route: text=%q dirty=%t quit=%t history=%d", buf.RawText(), buf.IsDirty, m.Quitting, m.Vim.History.Count())
+		}
+		m.Update(makeKeyMsg("esc"))
+		m.Update(makeKeyMsg("u"))
+		if buf.RawText() != "\n" {
+			t.Fatalf("undo = %q, want original empty line", buf.RawText())
+		}
+	})
+	for _, tc := range []struct {
+		name       string
+		text       string
+		readErr    error
+		bracketed  bool
+		wantStatus string
+	}{
+		{"empty clipboard", "", nil, false, "Área de transferência sem texto para colar"},
+		{"clipboard read failure", "", errors.New("unavailable"), false, "Não foi possível ler a área de transferência"},
+		{"clipboard limit", strings.Repeat("a", 10001), nil, false, "Texto para colar excede 10.000 caracteres ou 200 linhas"},
+		{"bracketed line limit", strings.Repeat("a\n", 200), nil, true, "Texto para colar excede 10.000 caracteres ou 200 linhas"},
+		{"invalid UTF-8", "", nil, true, "Texto para colar contém UTF-8 inválido"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			buf := buffer.NewEmptyBuffer("paste.md")
+			buf.Lines[0] = buffer.NewLine("ABCDE", buffer.EndingNone)
+			m := app.NewModel(buf, nil)
+			provider := &appClipboardProvider{text: tc.text, readErr: tc.readErr}
+			m.Vim.Clipboard = vim.NewClipboardWithProvider(provider)
+			m.Vim.State.CurrentMode = vim.ModeVisualChar
+			m.Vim.State.Selection = &vim.Selection{Start: vim.Position{Line: 0, Col: 1}, End: vim.Position{Line: 0, Col: 2}, Type: vim.ModeVisualChar}
+			beforeCursor := buf.Cursor
+			beforeHistory := m.Vim.History.Count()
+			if tc.bracketed {
+				runes := []rune(tc.text)
+				if tc.name == "invalid UTF-8" {
+					runes = []rune{0xfffd}
+				}
+				m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: runes, Paste: true})
+			} else {
+				m.Update(tea.KeyMsg{Type: tea.KeyCtrlV})
+			}
+			if m.StatusMsg != tc.wantStatus || buf.RawText() != "ABCDE" || buf.IsDirty || buf.Cursor != beforeCursor || m.Vim.History.Count() != beforeHistory || m.Vim.State.Selection == nil {
+				t.Fatalf("failure changed state: status=%q text=%q dirty=%t cursor=%+v history=%d selection=%+v", m.StatusMsg, buf.RawText(), buf.IsDirty, buf.Cursor, m.Vim.History.Count(), m.Vim.State.Selection)
+			}
+		})
+	}
+	t.Run("clipboard replaces selection", func(t *testing.T) {
+		t.Parallel()
+		buf := buffer.NewEmptyBuffer("paste.md")
+		buf.Lines[0] = buffer.NewLine("ABCDE", buffer.EndingNone)
+		m := app.NewModel(buf, nil)
+		m.Vim.Clipboard = vim.NewClipboardWithProvider(&appClipboardProvider{text: "x\ny"})
+		m.Vim.State.CurrentMode = vim.ModeVisualChar
+		m.Vim.State.Selection = &vim.Selection{Start: vim.Position{Line: 0, Col: 1}, End: vim.Position{Line: 0, Col: 2}, Type: vim.ModeVisualChar}
+		m.Update(tea.KeyMsg{Type: tea.KeyCtrlV})
+		if buf.RawText() != "Ax\nyDE" || m.Vim.State.Selection != nil || !buf.IsDirty {
+			t.Fatalf("clipboard paste = %q, selection=%+v", buf.RawText(), m.Vim.State.Selection)
+		}
+	})
+	t.Run("insert clipboard and normal visual block", func(t *testing.T) {
+		t.Parallel()
+		buf := buffer.NewEmptyBuffer("paste.md")
+		m := app.NewModel(buf, nil)
+		m.Vim.Clipboard = vim.NewClipboardWithProvider(&appClipboardProvider{text: "**é**"})
+		m.Update(makeKeyMsg("i"))
+		m.Update(tea.KeyMsg{Type: tea.KeyCtrlV})
+		if !strings.HasPrefix(buf.RawText(), "**é**") || !buf.IsDirty {
+			t.Fatalf("insert clipboard paste = %q", buf.RawText())
+		}
+		m.Update(makeKeyMsg("esc"))
+		m.Update(tea.KeyMsg{Type: tea.KeyCtrlV})
+		if m.Vim.State.CurrentMode != vim.ModeVisualBlock {
+			t.Fatalf("normal Ctrl+V mode = %v", m.Vim.State.CurrentMode)
+		}
+	})
+}
+
+func TestApp_SettingsBlocksTransfer(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		mode  vim.Mode
+		modal bool
+	}{
+		{"settings", vim.ModeInsert, true},
+		{"command", vim.ModeCommand, false},
+		{"search", vim.ModeSearch, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			buf := buffer.NewEmptyBuffer("paste.md")
+			m := app.NewModel(buf, nil)
+			m.Vim.SetMode(tc.mode)
+			if tc.modal {
+				m.Update(app.OpenSettingsMsg{})
+			}
+			m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("dd\n:q"), Paste: true})
+			m.Update(tea.KeyMsg{Type: tea.KeyCtrlV})
+			if buf.IsDirty || buf.RawText() != "\n" || m.Vim.History.Count() != 1 {
+				t.Fatalf("blocked mode changed document: mode=%v modal=%t text=%q", tc.mode, tc.modal, buf.RawText())
 			}
 		})
 	}
