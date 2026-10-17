@@ -207,6 +207,34 @@ func TestViewport_MouseToCursor(t *testing.T) {
 	}
 }
 
+func TestViewport_MouseToPasteCursor(t *testing.T) {
+	t.Parallel()
+	buf := buffer.NewEmptyBuffer("doc.md")
+	buf.Lines[0] = buffer.NewLine("abc", buffer.EndingNone)
+	vp := NewViewport(20, 4)
+	gutter := CalculateGutterWidth(buf.LineCount())
+	for _, tc := range []struct {
+		name string
+		x, y int
+		want buffer.Cursor
+		ok   bool
+	}{
+		{"text", gutter + 1, 0, buffer.Cursor{Line: 0, Col: 1}, true},
+		{"after text", gutter + 10, 0, buffer.Cursor{Line: 0, Col: 3}, true},
+		{"blank row", gutter, 2, buffer.Cursor{Line: 0, Col: 3}, true},
+		{"status row", gutter, 4, buffer.Cursor{}, false},
+		{"above viewport", gutter, -1, buffer.Cursor{}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := vp.MouseToPasteCursor(tc.x, tc.y, buf)
+			if got != tc.want || ok != tc.ok {
+				t.Fatalf("MouseToPasteCursor(%d, %d) = (%+v, %t), want (%+v, %t)", tc.x, tc.y, got, ok, tc.want, tc.ok)
+			}
+		})
+	}
+}
+
 func TestViewport_MouseWideRuneAndWrap(t *testing.T) {
 	t.Parallel()
 	line := buffer.NewLine("a界🙂ébbbbb", buffer.EndingLF)

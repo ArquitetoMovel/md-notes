@@ -275,6 +275,109 @@ func TestApp_MouseSelectionLifecycle(t *testing.T) {
 	}
 }
 
+func TestApp_RightClickClipboard(t *testing.T) {
+	t.Parallel()
+	t.Run("selected text is copied once", func(t *testing.T) {
+		t.Parallel()
+		buf := buffer.NewEmptyBuffer("mouse.md")
+		buf.Lines[0] = buffer.NewLine("# é🙂", buffer.EndingNone)
+		m := app.NewModel(buf, nil)
+		m.Viewport.SetDimensions(20, 4)
+		provider := &appClipboardProvider{}
+		m.Vim.Clipboard = vim.NewClipboardWithProvider(provider)
+		gutter := ui.CalculateGutterWidth(buf.LineCount())
+		m.Update(tea.MouseMsg{X: gutter + 2, Y: 0, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+		m.Update(tea.MouseMsg{X: gutter + 3, Y: 0, Button: tea.MouseButtonLeft, Action: tea.MouseActionMotion})
+		m.Update(tea.MouseMsg{X: gutter + 3, Y: 0, Action: tea.MouseActionRelease})
+		if m.Vim.State.Selection == nil {
+			t.Fatal("mouse drag did not create selection")
+		}
+		beforeCursor := buf.Cursor
+		m.Update(tea.MouseMsg{X: 19, Y: 0, Button: tea.MouseButtonRight, Action: tea.MouseActionPress})
+		m.Update(tea.MouseMsg{X: 19, Y: 0, Button: tea.MouseButtonRight, Action: tea.MouseActionRelease})
+		if provider.text != "é🙂" || provider.writes != 1 || m.Vim.State.Selection != nil || m.Vim.State.CurrentMode != vim.ModeNormal || m.StatusMsg != "Texto copiado" || buf.IsDirty || buf.Cursor != beforeCursor {
+			t.Fatalf("right copy: text=%q writes=%d selection=%+v status=%q dirty=%t cursor=%+v", provider.text, provider.writes, m.Vim.State.Selection, m.StatusMsg, buf.IsDirty, buf.Cursor)
+		}
+	})
+	t.Run("empty area pastes at clicked point and undoes once", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name string
+			x    int
+			y    int
+			want string
+		}{
+			{"inside line", ui.CalculateGutterWidth(1) + 1, 0, "a# é\n🙂bc"},
+			{"after line text", 19, 0, "abc# é\n🙂"},
+			{"below document", 19, 2, "abc# é\n🙂"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				buf := buffer.NewEmptyBuffer("mouse.md")
+				buf.Lines[0] = buffer.NewLine("abc", buffer.EndingNone)
+				m := app.NewModel(buf, nil)
+				m.Viewport.SetDimensions(20, 4)
+				m.Vim.Clipboard = vim.NewClipboardWithProvider(&appClipboardProvider{text: "# é\n🙂"})
+				m.Update(tea.MouseMsg{X: tc.x, Y: tc.y, Button: tea.MouseButtonRight, Action: tea.MouseActionPress})
+				if got := buf.RawText(); got != tc.want || !buf.IsDirty || buf.Cursor != (buffer.Cursor{Line: 1, Col: 1}) || m.Vim.History.Count() != 2 || m.Vim.State.CurrentMode != vim.ModeNormal {
+					t.Fatalf("right paste: text=%q dirty=%t cursor=%+v history=%d mode=%v", got, buf.IsDirty, buf.Cursor, m.Vim.History.Count(), m.Vim.State.CurrentMode)
+				}
+				m.Update(makeKeyMsg("u"))
+				if buf.RawText() != "abc" || buf.IsDirty {
+					t.Fatalf("undo = %q, dirty=%t", buf.RawText(), buf.IsDirty)
+				}
+			})
+		}
+	})
+	t.Run("clipboard failures preserve document and selection", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name       string
+			selection  bool
+			provider   appClipboardProvider
+			wantStatus string
+		}{
+			{"copy unavailable", true, appClipboardProvider{writeErr: errors.New("unavailable")}, "Não foi possível copiar para a área de transferência"},
+			{"paste unavailable", false, appClipboardProvider{readErr: errors.New("unavailable")}, "Não foi possível ler a área de transferência"},
+			{"clipboard empty", false, appClipboardProvider{}, "Área de transferência sem texto para colar"},
+			{"paste too large", false, appClipboardProvider{text: strings.Repeat("x", 10001)}, "Texto para colar excede 10.000 caracteres ou 200 linhas"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				buf := buffer.NewEmptyBuffer("mouse.md")
+				buf.Lines[0] = buffer.NewLine("abc", buffer.EndingNone)
+				m := app.NewModel(buf, nil)
+				m.Viewport.SetDimensions(20, 4)
+				provider := tc.provider
+				m.Vim.Clipboard = vim.NewClipboardWithProvider(&provider)
+				if tc.selection {
+					m.Vim.State.CurrentMode = vim.ModeVisualChar
+					m.Vim.State.Selection = &vim.Selection{Start: vim.Position{Line: 0, Col: 0}, End: vim.Position{Line: 0, Col: 1}, Type: vim.ModeVisualChar}
+				}
+				beforeCursor := buf.Cursor
+				m.Update(tea.MouseMsg{X: 19, Y: 0, Button: tea.MouseButtonRight, Action: tea.MouseActionPress})
+				if buf.RawText() != "abc" || buf.IsDirty || buf.Cursor != beforeCursor || m.Vim.History.Count() != 1 || (m.Vim.State.Selection != nil) != tc.selection || m.StatusMsg != tc.wantStatus {
+					t.Fatalf("failure changed state: text=%q dirty=%t cursor=%+v history=%d selection=%+v status=%q", buf.RawText(), buf.IsDirty, buf.Cursor, m.Vim.History.Count(), m.Vim.State.Selection, m.StatusMsg)
+				}
+			})
+		}
+	})
+	t.Run("settings and status row ignore right click", func(t *testing.T) {
+		t.Parallel()
+		buf := buffer.NewEmptyBuffer("mouse.md")
+		m := app.NewModel(buf, nil)
+		m.Viewport.SetDimensions(20, 4)
+		provider := &appClipboardProvider{text: "paste"}
+		m.Vim.Clipboard = vim.NewClipboardWithProvider(provider)
+		m.Update(tea.MouseMsg{X: 5, Y: 4, Button: tea.MouseButtonRight, Action: tea.MouseActionPress})
+		m.SettingsOpen = true
+		m.Update(tea.MouseMsg{X: 5, Y: 0, Button: tea.MouseButtonRight, Action: tea.MouseActionPress})
+		if buf.IsDirty || buf.RawText() != "\n" || m.Vim.History.Count() != 1 || provider.writes != 0 {
+			t.Fatal("right click outside document changed buffer")
+		}
+	})
+}
+
 func TestApp_MouseClipboardPasteUTF8CRLF(t *testing.T) {
 	t.Parallel()
 	buf := buffer.NewEmptyBuffer("integration.md")

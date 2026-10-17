@@ -476,6 +476,33 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.Vim.State.CurrentMode == vim.ModeCommand || m.Vim.State.CurrentMode == vim.ModeSearch {
 			return m, nil
 		}
+		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonRight {
+			point, ok := m.Viewport.MouseToPasteCursor(msg.X, msg.Y, m.Buffer)
+			if !ok {
+				return m, nil
+			}
+			if m.Vim.State.Selection != nil {
+				copied, err := m.Vim.CopySelection()
+				if err != nil {
+					m.StatusMsg = "Não foi possível copiar para a área de transferência"
+					return m, nil
+				}
+				if copied {
+					m.Vim.SetMode(vim.ModeNormal)
+					m.mouseSelection = false
+					m.mouseDragging = false
+					m.StatusMsg = "Texto copiado"
+				}
+				return m, nil
+			}
+			if err := m.Vim.PasteClipboardAt(point); err != nil {
+				m.StatusMsg = pasteStatus(err)
+				return m, nil
+			}
+			m.mouseDragging = false
+			m.StatusMsg = ""
+			return m, nil
+		}
 		if msg.Action == tea.MouseActionRelease && m.mouseDragging {
 			if point, ok := m.Viewport.MouseToCursor(msg.X, msg.Y, m.Buffer); ok {
 				m.Buffer.Cursor = point

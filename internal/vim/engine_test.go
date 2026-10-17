@@ -122,6 +122,48 @@ func TestEngine_PasteAtomicUndo(t *testing.T) {
 	})
 }
 
+func TestEngine_PasteClipboardAt(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		mode    Mode
+		wantErr error
+	}{
+		{"normal", ModeNormal, nil},
+		{"insert", ModeInsert, nil},
+		{"command blocked", ModeCommand, ErrPasteBlocked},
+		{"search blocked", ModeSearch, ErrPasteBlocked},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			buf := buffer.NewEmptyBuffer("mouse.md")
+			buf.Lines[0] = buffer.NewLine("abc", buffer.EndingNone)
+			engine := NewEngine(buf)
+			engine.SetMode(tc.mode)
+			engine.Clipboard = NewClipboardWithProvider(&fakeClipboardProvider{text: "🙂"})
+			err := engine.PasteClipboardAt(buffer.Cursor{Line: 0, Col: 2})
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("PasteClipboardAt error = %v, want %v", err, tc.wantErr)
+			}
+			if tc.wantErr != nil {
+				if buf.RawText() != "abc" || buf.IsDirty || engine.History.Count() != 1 {
+					t.Fatal("blocked context paste changed state")
+				}
+				return
+			}
+			if buf.RawText() != "ab🙂c" || buf.Cursor != (buffer.Cursor{Line: 0, Col: 3}) || engine.History.Count() != 2 {
+				t.Fatalf("context paste = %q, cursor=%+v, history=%d", buf.RawText(), buf.Cursor, engine.History.Count())
+			}
+			if _, err := engine.History.Undo(buf); err != nil {
+				t.Fatal(err)
+			}
+			if buf.RawText() != "abc" || buf.IsDirty {
+				t.Fatalf("undo = %q, dirty=%t", buf.RawText(), buf.IsDirty)
+			}
+		})
+	}
+}
+
 func makeKey(str string) tea.KeyMsg {
 	if str == "esc" {
 		return tea.KeyMsg{Type: tea.KeyEsc}

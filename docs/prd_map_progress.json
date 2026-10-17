@@ -3,7 +3,7 @@
   "version": "1.0",
   "lang": "pt-BR",
   "prdPath": "docs/PRD.md",
-  "updatedAt": "2026-09-06T20:22:00Z",
+  "updatedAt": "2026-09-27T13:06:15Z",
   "features": [
     {
       "id": "F01",
@@ -11,7 +11,7 @@
       "status": "done",
       "wave": 1,
       "priority": 1,
-      "specPath": ".sdd-builder/F01-cli-entrypoint-file-buffer-manager",
+      "specPath": "docs/F01-cli-entrypoint-file-buffer-manager",
       "updatedAt": "2026-08-31T22:15:00Z",
       "note": ""
     },
@@ -21,7 +21,7 @@
       "status": "done",
       "wave": 1,
       "priority": 1,
-      "specPath": ".sdd-builder/F02-configuration-theme-engine",
+      "specPath": "docs/F02-configuration-theme-engine",
       "updatedAt": "2026-09-01T01:43:46Z",
       "note": ""
     },
@@ -31,7 +31,7 @@
       "status": "done",
       "wave": 2,
       "priority": 1,
-      "specPath": ".sdd-builder/F03-modal-editing-engine-vim-emulation",
+      "specPath": "docs/F03-modal-editing-engine-vim-emulation",
       "updatedAt": "2026-09-01T02:02:21Z",
       "note": ""
     },
@@ -40,8 +40,8 @@
       "name": "Live Markdown Syntax Parser & Highlighting",
       "status": "done",
       "wave": 2,
-      "priority": 2,
-      "specPath": ".sdd-builder/F04-live-markdown-syntax-parser-highlighting",
+      "priority": 1,
+      "specPath": "docs/F04-live-markdown-syntax-parser-highlighting",
       "updatedAt": "2026-09-01T02:10:45Z",
       "note": ""
     },
@@ -51,7 +51,7 @@
       "status": "done",
       "wave": 3,
       "priority": 2,
-      "specPath": ".sdd-builder/F05-dynamic-markdown-table-engine",
+      "specPath": "docs/F05-dynamic-markdown-table-engine",
       "updatedAt": "2026-09-01T02:20:25Z",
       "note": ""
     },
@@ -61,7 +61,7 @@
       "status": "done",
       "wave": 3,
       "priority": 2,
-      "specPath": ".sdd-builder/F06-interactive-search-replace-system",
+      "specPath": "docs/F06-interactive-search-replace-system",
       "updatedAt": "2026-09-01T02:49:45Z",
       "note": ""
     },
@@ -71,7 +71,7 @@
       "status": "done",
       "wave": 4,
       "priority": 1,
-      "specPath": ".sdd-builder/F07-tui-viewport-status-line-renderer",
+      "specPath": "docs/F07-tui-viewport-status-line-renderer",
       "updatedAt": "2026-09-01T02:56:30Z",
       "note": ""
     },
@@ -81,9 +81,19 @@
       "status": "done",
       "wave": 5,
       "priority": 2,
-      "specPath": ".sdd-builder/F08-interactive-configuration-panel-settings-ui",
+      "specPath": "docs/F08-interactive-configuration-panel-settings-ui",
       "updatedAt": "2026-09-06T22:10:00Z",
       "note": ""
+    },
+    {
+      "id": "F09",
+      "name": "Seleção com mouse e transferência de texto",
+      "status": "done",
+      "wave": 5,
+      "priority": 2,
+      "specPath": "docs/F09-selecao-com-mouse-e-transferencia-de-texto",
+      "updatedAt": "2026-09-27T13:06:15Z",
+      "note": "Bubble Tea v0.26.6; paste delimitado rejeita U+FFFD por não expor bytes UTF-8 originais."
     }
   ],
   "decisions": [
@@ -121,6 +131,11 @@
       "id": "D07",
       "title": "Interactive Configuration Panel",
       "decision": "Painel modal em popup centralizado acionado por comandos :c e :config para ajuste interativo de temas e preferências com persistência direta no config.toml"
+    },
+    {
+      "id": "D08",
+      "title": "Seleção e transferência de texto no terminal",
+      "decision": "Bubble Tea v0.26.6 com bracketed paste; Cmd depende do encaminhamento pelo terminal. Clipboard estrito para atalhos F09 e fallback preservado para comandos Vim."
     }
   ],
   "notes": ""

@@ -378,6 +378,26 @@ func (v *Viewport) MouseToCursor(x, y int, buf *buffer.Buffer) (buffer.Cursor, b
 	return buffer.Cursor{Line: line.LogicalLine, Col: col}, true
 }
 
+// MouseToPasteCursor also maps blank viewport rows after the document to its end.
+func (v *Viewport) MouseToPasteCursor(x, y int, buf *buffer.Buffer) (buffer.Cursor, bool) {
+	if point, ok := v.MouseToCursor(x, y, buf); ok {
+		return point, true
+	}
+	if buf == nil || y < 0 || y >= v.Height {
+		return buffer.Cursor{}, false
+	}
+	visible := v.GetVisibleLines(buf)
+	if len(visible) == 0 || y < len(visible) {
+		return buffer.Cursor{}, false
+	}
+	last := visible[len(visible)-1]
+	line, err := buf.GetLine(last.LogicalLine)
+	if err != nil {
+		return buffer.Cursor{}, false
+	}
+	return buffer.Cursor{Line: last.LogicalLine, Col: line.Length()}, true
+}
+
 // GetVisibleLines computes the visual lines to render for the current viewport view.
 func (v *Viewport) GetVisibleLines(buf *buffer.Buffer) []VisualLine {
 	if buf == nil || buf.LineCount() == 0 {

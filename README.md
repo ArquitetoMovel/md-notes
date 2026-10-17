@@ -19,6 +19,8 @@
 
 Arraste o botão esquerdo do mouse sobre o texto para selecionar. A seleção continua visível após soltar; `Esc` a cancela. `Ctrl+C` copia o Markdown original da seleção, incluindo suas quebras de linha. Sem seleção, `Ctrl+C` tenta sair e protege alterações não salvas com `E37`.
 
+Um clique com o botão direito dentro do documento copia a seleção ativa. Sem seleção, cola o texto do clipboard na posição clicada; na área vazia abaixo da última linha, cola ao fim do documento. A colagem pode ser desfeita com um único `u`. Cliques na barra de status ou no painel de configurações não alteram o documento.
+
 No modo INSERT, `Ctrl+V` cola texto simples do clipboard. Com uma seleção ativa, `Ctrl+V` substitui o trecho selecionado; no modo NORMAL sem seleção, mantém o comando Vim de bloco visual. Colagem delimitada pelo terminal também insere o texto literalmente em INSERT ou sobre uma seleção, como uma única etapa de desfazer. Cada colagem aceita até 10.000 caracteres Unicode e 200 linhas.
 
 Os atalhos dependem do terminal: o `mdn` só recebe `Cmd+C` quando o terminal o encaminha como `Ctrl+C`, e só recebe `Cmd+V` quando o terminal envia uma colagem delimitada ou o mapeia para `Ctrl+V`. Se o terminal ou o `tmux` capturar mouse ou atalhos, configure seu encaminhamento; no `tmux`, habilite o mouse com `set -g mouse on`.

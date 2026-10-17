@@ -831,12 +831,30 @@ func (e *Engine) PasteClipboard() error {
 	return e.PasteText(text)
 }
 
+// PasteClipboardAt inserts clipboard text at a mouse-selected insertion point.
+// It accepts NORMAL and INSERT without requiring a visual selection.
+func (e *Engine) PasteClipboardAt(at buffer.Cursor) error {
+	if e == nil || e.Buffer == nil || e.History == nil || e.State.Selection != nil ||
+		(e.State.CurrentMode != ModeNormal && e.State.CurrentMode != ModeInsert) {
+		return ErrPasteBlocked
+	}
+	text, err := e.Clipboard.ReadStrict()
+	if err != nil {
+		return errors.Join(ErrPasteRead, err)
+	}
+	return e.pasteText(text, &at)
+}
+
 // PasteText inserts literal text or replaces the current visual selection.
 // Validation completes before the buffer or history is changed.
 func (e *Engine) PasteText(text string) error {
 	if !e.canPaste() {
 		return ErrPasteBlocked
 	}
+	return e.pasteText(text, nil)
+}
+
+func (e *Engine) pasteText(text string, at *buffer.Cursor) error {
 	if !utf8.ValidString(text) {
 		return ErrPasteInvalidUTF8
 	}
@@ -849,6 +867,9 @@ func (e *Engine) PasteText(text string) error {
 	}
 
 	start, end := e.pasteRange()
+	if at != nil {
+		start, end = *at, *at
+	}
 	before := Snapshot{
 		Lines:    CloneLines(e.Buffer.Lines),
 		Cursor:   e.Buffer.Cursor,
