@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>md-notes (mdn) — O Editor Modal de Markdown para Terminal Definitivo</title>
-  <meta name="description" content="Editor e visualizador modal de Markdown em terminal (TUI) moderno, de alta performance e multiplataforma, construído em Go com Bubble Tea e Lipgloss. Boot instantâneo (< 50ms), ergonomia Vim e integração com assistentes de IA.">
+  <meta name="description" content="Editor Markdown para terminal com ergonomia Vim, seleção com mouse e copiar e colar com a área de transferência do sistema. Aprenda a usar o arraste, os atalhos e o clique direito no macOS, Linux e Windows.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1037,7 +1037,7 @@
     }
 
     /* ==========================================================================
-       FEATURES SHOWCASE (THE 8 REVOLUTIONARY PILLARS F01-F08)
+       FEATURES SHOWCASE (F01-F09)
        ========================================================================== */
     .features-section {
       padding: 6rem 0;
@@ -1095,6 +1095,97 @@
     .feat-pipe svg { fill: #7AA2F7; }
     .feat-tui svg { fill: #7DCFFF; }
     .feat-atomic svg { fill: #F1FA8C; }
+    .feat-mouse svg { fill: #7AA2F7; }
+
+    /* Mouse and clipboard usage guide */
+    #mouse {
+      padding: 6rem 0;
+      scroll-margin-top: 88px;
+    }
+
+    .mouse-guide-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 2rem;
+      align-items: start;
+    }
+
+    .mouse-steps {
+      padding-left: 1.5rem;
+      color: var(--text-secondary);
+    }
+
+    .mouse-steps li {
+      padding-left: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .mouse-steps li::marker {
+      color: #7AA2F7;
+      font-weight: 700;
+    }
+
+    .mouse-steps h3 {
+      color: var(--text-primary);
+      font-size: 1.1rem;
+      margin-bottom: 0.4rem;
+    }
+
+    .mouse-example, .mouse-note {
+      padding: 1.5rem;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      background: var(--bg-card);
+    }
+
+    .mouse-example pre {
+      padding: 1.25rem;
+      margin: 1rem 0;
+      background: #131722;
+      border-radius: var(--radius-sm);
+      color: #D1D5DB;
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .mouse-example mark {
+      background: #344F85;
+      color: #FFFFFF;
+    }
+
+    .mouse-example figcaption, .mouse-note p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+
+    .mouse-note {
+      margin-top: 1rem;
+    }
+
+    .mouse-note summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .mouse-note p + p, .mouse-note summary + p {
+      margin-top: 0.75rem;
+    }
+
+    .mouse-guide-link {
+      display: inline-block;
+      color: #93C5FD;
+      text-decoration: underline;
+      text-underline-offset: 4px;
+      margin-top: 1rem;
+    }
+
+    .mouse-guide-link:focus-visible, .mouse-note summary:focus-visible {
+      outline: 2px solid #7AA2F7;
+      outline-offset: 4px;
+    }
 
     .feature-id-tag {
       font-family: var(--font-mono);
@@ -1455,6 +1546,9 @@
     }
 
     @media (max-width: 640px) {
+      .mouse-guide-grid {
+        grid-template-columns: 1fr;
+      }
       .footer-grid {
         grid-template-columns: 1fr;
       }
@@ -1491,7 +1585,7 @@
         <ul class="nav-links">
           <li><a href="#demo" class="nav-link">Simulador</a></li>
           <li><a href="#features" class="nav-link">Recursos</a></li>
-          <li><a href="#performance" class="nav-link">Benchmarks</a></li>
+          <li><a href="#mouse" class="nav-link">Mouse &amp; Clipboard</a></li>
           <li><a href="#shortcuts" class="nav-link">Atalhos Vim</a></li>
           <li><a href="#downloads" class="nav-link">Downloads</a></li>
         </ul>
@@ -1526,7 +1620,7 @@
 
         <p class="hero-subtitle">
           Edição ergonômica no padrão Vim, renderização rica em tempo real sem ocultar marcadores,
-          alinhamento dinâmico de tabelas e inicialização em menos de <strong>50 milissegundos</strong>.
+          seleção com mouse, copiar e colar, tabelas com alinhamento dinâmico e inicialização em menos de <strong>50 milissegundos</strong>.
           Binário nativo e estático em puro Go para macOS, Linux e Windows.
         </p>
 
@@ -1834,12 +1928,12 @@
       </div>
     </section>
 
-    <!-- ARCHITECTURE & FEATURES GRID (F01 to F08) -->
+    <!-- ARCHITECTURE & FEATURES GRID (F01 to F09) -->
     <section id="features" class="features-section">
       <div class="container">
         <div class="section-header">
           <div class="section-tag">Engenharia e Arquitetura</div>
-          <h2 class="section-title">Os 8 Pilares do md-notes</h2>
+          <h2 class="section-title">Os 9 Pilares do md-notes</h2>
           <p class="section-subtitle">
             Construído rigorosamente sobre The Elm Architecture (Bubble Tea) com modelo de dados em runes UTF-8,
             separação total entre máquina modal de estados e camada de apresentação.
@@ -1990,6 +2084,110 @@
               <span class="feature-tag">Inline Hex Edit</span>
             </div>
           </article>
+
+          <!-- F09 -->
+          <article class="feature-card">
+            <div class="feature-icon-wrapper feat-mouse">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 2a7 7 0 0 0-6 7v6a7 7 0 0 0 14 0V9a7 7 0 0 0-6-7v7h-2V2zm-4 9h10v4a5 5 0 0 1-10 0v-4z"/></svg>
+            </div>
+            <span class="feature-id-tag">RECURSO F09</span>
+            <h3 class="feature-title">Seleção com Mouse &amp; Copiar e Colar</h3>
+            <p class="feature-desc">
+              Arraste para selecionar e copie o Markdown original com <code>Ctrl+C</code>.
+              Cole texto simples em INSERT ou substitua a seleção, com desfazer em uma etapa.
+              O clique direito copia a seleção ativa; sem seleção, cola na posição clicada.
+            </p>
+            <div class="feature-tags">
+              <span class="feature-tag">Seleção por Arraste</span>
+              <span class="feature-tag">Clipboard do Sistema</span>
+              <span class="feature-tag">Colagem Literal</span>
+            </div>
+            <a href="#mouse" class="mouse-guide-link">Aprenda a selecionar, copiar e colar →</a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- MOUSE & CLIPBOARD GUIDE (F09) -->
+    <section id="mouse" aria-labelledby="mouse-title">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-tag">Seleção com Mouse &amp; Transferência de Texto</div>
+          <h2 id="mouse-title" class="section-title">Selecione, copie e cole direto no terminal</h2>
+          <p class="section-subtitle">
+            Troque texto com outros programas preservando os marcadores Markdown e as quebras de linha do documento.
+            A seleção pertence ao editor e acompanha o texto mesmo com rolagem e quebra visual de linhas.
+          </p>
+        </div>
+
+        <div class="mouse-guide-grid">
+          <ol class="mouse-steps">
+            <li>
+              <h3>Arraste para selecionar</h3>
+              <p>Abra um arquivo com <code>mdn notas.md</code>. Pressione o botão esquerdo sobre o texto,
+                arraste até o fim do trecho e solte. O destaque permanece e o modo <code>-- VISUAL --</code>
+                aparece na barra de status. <code>Esc</code> cancela; um clique simples reposiciona o cursor e limpa a seleção.</p>
+            </li>
+            <li>
+              <h3>Copie o Markdown original</h3>
+              <p>Com seleção ativa, pressione <code>Ctrl+C</code> ou clique com o botão direito na área do documento.
+                Ao aparecer <code>Texto copiado</code>, a seleção é limpa e o editor volta a NORMAL.
+                Selecionar e copiar preservam o documento.</p>
+            </li>
+            <li>
+              <h3>Cole no cursor ou substitua uma seleção</h3>
+              <p>Copie texto em outro programa. No <code>mdn</code>, posicione o cursor, pressione <code>i</code>
+                para entrar em INSERT e use <code>Ctrl+V</code>. Se houver uma seleção ativa, <code>Ctrl+V</code>
+                substitui o trecho selecionado. A colagem delimitada pelo terminal (bracketed paste) também funciona
+                em INSERT ou sobre uma seleção e insere o texto literalmente, sem executar comandos Vim.</p>
+            </li>
+            <li>
+              <h3>Use o clique direito para colar no ponto desejado</h3>
+              <p>Sem seleção, clique com o botão direito no local de inserção, em NORMAL ou INSERT.
+                Se clicar na área vazia abaixo da última linha, o texto será inserido no fim do documento.
+                Com seleção ativa, esse mesmo gesto copia a seleção, mesmo que o clique seja fora dela.</p>
+              <p>Para desfazer toda a colagem em uma etapa, volte a NORMAL com <code>Esc</code>, se necessário,
+                e pressione <code>u</code>. A colagem altera o buffer; use <code>:w</code> para salvar.</p>
+            </li>
+          </ol>
+
+          <div>
+            <figure class="mouse-example">
+              <div class="section-tag">Exemplo de seleção · Ilustração</div>
+              <pre><code><mark># Notas da reunião
+- [x] Revisar **documentação**
+- [ ] Publicar atualização 🙂</mark></code></pre>
+              <figcaption>O conteúdo copiado inclui <code>#</code>, <code>- [x]</code>, <code>**</code>, acentos e emojis.
+                Quebras visuais causadas pela largura do terminal não acrescentam novas linhas ao texto copiado.</figcaption>
+            </figure>
+
+            <aside class="mouse-note" aria-label="Comportamento dos atalhos">
+              <p><strong>O modo faz diferença:</strong> <code>Ctrl+C</code> sem seleção tenta sair do editor;
+                alterações não salvas são protegidas pelo aviso <code>E37</code>.
+                <code>Ctrl+V</code> em NORMAL sem seleção continua abrindo o Visual Block.</p>
+            </aside>
+
+            <details class="mouse-note" open>
+              <summary>Atalhos no macOS, terminal e tmux</summary>
+              <p>O editor só recebe os eventos que o terminal encaminha. <code>Cmd+C</code> funciona quando
+                mapeado para <code>Ctrl+C</code>; <code>Cmd+V</code> precisa chegar como colagem delimitada
+                ou como <code>Ctrl+V</code>. Um atalho interceptado pelo terminal segue a configuração dele.</p>
+              <p>Se o terminal abrir seu próprio menu no clique direito ou capturar o arraste, configure
+                o encaminhamento do mouse. No <code>tmux</code>, habilite <code>set -g mouse on</code>;
+                o terminal e o multiplexador precisam entregar os eventos ao editor.</p>
+            </details>
+
+            <details class="mouse-note">
+              <summary>Limites e falhas de copiar e colar</summary>
+              <p>Cada colagem aceita texto simples com até <strong>10.000 caracteres Unicode e 200 linhas</strong>.
+                Conteúdo acima do limite é recusado por inteiro. Clipboard vazio ou indisponível gera uma mensagem
+                na barra de status e preserva o documento e a seleção.</p>
+              <p>Cliques na barra de status, no painel de configurações ou durante COMMAND/SEARCH não copiam
+                nem colam no documento. A colagem também fica bloqueada durante COMMAND/SEARCH e no painel.</p>
+              <p>A colagem delimitada pelo terminal recusa o caractere de substituição Unicode <code>�</code> (U+FFFD).
+                Se ele fizer parte do texto original, use <code>Ctrl+V</code> em INSERT para ler diretamente o clipboard.</p>
+            </details>
+          </div>
         </div>
       </div>
     </section>
@@ -2117,7 +2315,7 @@
               <tr><td><span class="shortcut-key">i / a / A</span></td><td class="shortcut-desc">Insert antes, após cursor ou no fim</td></tr>
               <tr><td><span class="shortcut-key">o / O</span></td><td class="shortcut-desc">Nova linha abaixo / acima</td></tr>
               <tr><td><span class="shortcut-key">v / V</span></td><td class="shortcut-desc">Modo Visual (caractere / linha)</td></tr>
-              <tr><td><span class="shortcut-key">Ctrl+v</span></td><td class="shortcut-desc">Modo Visual em Bloco</td></tr>
+              <tr><td><span class="shortcut-key">Ctrl+V</span></td><td class="shortcut-desc">Colar em INSERT ou sobre seleção; Visual Block em NORMAL sem seleção</td></tr>
               <tr><td><span class="shortcut-key">Esc</span></td><td class="shortcut-desc">Retornar ao modo NORMAL</td></tr>
             </table>
           </div>
@@ -2131,6 +2329,8 @@
               <tr><td><span class="shortcut-key">x / dd / dw</span></td><td class="shortcut-desc">Apagar caractere, linha ou palavra</td></tr>
               <tr><td><span class="shortcut-key">yy / yw</span></td><td class="shortcut-desc">Copiar linha ou palavra para o SO</td></tr>
               <tr><td><span class="shortcut-key">p / P</span></td><td class="shortcut-desc">Colar após / antes do cursor</td></tr>
+              <tr><td><span class="shortcut-key">Ctrl+C</span></td><td class="shortcut-desc">Copiar seleção; sem seleção, tentar sair com proteção E37</td></tr>
+              <tr><td><span class="shortcut-key">Clique direito</span></td><td class="shortcut-desc">Copiar seleção; sem seleção, colar no ponto clicado em NORMAL/INSERT</td></tr>
               <tr><td><span class="shortcut-key">u / Ctrl+r</span></td><td class="shortcut-desc">Desfazer / Refazer (200 níveis)</td></tr>
               <tr><td><span class="shortcut-key">Tab / Shift-Tab</span></td><td class="shortcut-desc">Navegar entre células de tabelas</td></tr>
             </table>
@@ -2277,6 +2477,7 @@
           <h4 class="footer-col-title">Produto</h4>
           <ul class="footer-links">
             <li><a href="#features">Recursos</a></li>
+            <li><a href="#mouse">Como Selecionar, Copiar e Colar</a></li>
             <li><a href="#demo">Simulador Web</a></li>
             <li><a href="#performance">Benchmarks</a></li>
             <li><a href="#shortcuts">Guia de Atalhos</a></li>

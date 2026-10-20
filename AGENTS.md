@@ -117,7 +117,10 @@ md-notes/
 │   └── watcher/               # fsnotify file change watcher with Pause/Resume coordination
 ├── scripts/
 │   └── build.go               # Pure Go cross-platform compilation & packaging script
-├── docs/                      # PRD, architectural specifications, build guides
+├── docs/                      # PRD, SDD feature roadmap and specifications, architecture, build guides
+│   ├── PRD.md                 # Product requirements and feature IDs
+│   ├── prd_map_progress.json  # Single canonical SDD feature roadmap
+│   └── FNN-feature-name/      # Per-feature spec.md, plan.md, tests.md
 ├── Makefile                   # Make build automation shortcuts
 ├── go.mod                     # Go module definitions
 ├── go.sum                     # Cryptographic checksums of dependencies
@@ -205,6 +208,12 @@ When implementing features, fixing bugs, or refactoring in this repository, you 
 3. Use `t.Parallel()` where appropriate to optimize test suite execution.
 4. Use `t.TempDir()` for all tests that interact with the filesystem.
 5. Keep global test coverage above 70% on domain packages (`buffer`, `vim`, `markdown`, `table`, `search`).
+
+### E. SDD Builder Artifacts
+1. Always create and update SDD Builder artifacts under `docs/`. The PRD is `docs/PRD.md`, and the **only** feature roadmap is `docs/prd_map_progress.json`.
+2. Store each feature's `spec.md`, `plan.md`, and `tests.md` in `docs/FNN-feature-name/`, where `FNN` matches the feature ID in the PRD and roadmap. Set `specPath` in the roadmap to that repository-relative directory.
+3. When generating a new SDD Builder artifact, explicitly use `docs/` as its output folder even if a skill or tool suggests `.sdd-builder/` as a default. Do not create another roadmap or feature specification directory outside `docs/`.
+4. Preserve existing feature statuses, decisions, and notes when updating the roadmap; keep its feature paths synchronized with the actual directories.
 
 ---
 

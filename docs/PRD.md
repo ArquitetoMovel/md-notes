@@ -16,6 +16,7 @@ Construído em *Go* com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compi
 - **Falta de formatação visual em editores de terminal tradicionais:** Editores padrão de terminal como Nano ou Vi padrão exibem texto markdown cru monocromático sem hierarquia visual, tornando a leitura de documentos extensos cansativa e propensa a erros de interpretação.
 - **Dificuldade de edição e visualização de tabelas Markdown:** Tabelas em arquivos Markdown são notoriamente difíceis de editar manualmente no terminal, frequentemente quebrando alinhamentos de colunas e pipes (`|`), o que exige reformatadores externos.
 - **Curva de aprendizado ou configurações complexas:** Configurar plugins avançados de Markdown no Neovim/Emacs consome horas de setup e gera incompatibilidades, enquanto editores simples não oferecem comandos de navegação rápidos (`/`, `:w`, `dd`, `yy`).
+- **Atrito ao trocar texto com outros programas:** Selecionar trechos com o mouse e usar os atalhos habituais de copiar e colar exige ações extras ou depende da seleção externa do terminal, especialmente em documentos com linhas quebradas visualmente.
 
 ### The Opportunity
 
@@ -23,6 +24,7 @@ Construído em *Go* com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compi
 - **Ergonomia modal nativa do Vim:** Proporciona navegação imediata com atalhos universais conhecidos (`h/j/k/l`, `w`, `b`, `gg`, `G`, `0`, `$`, `x`, `dd`, `yy`, `p`, `u`, `Ctrl+r`, `:w`, `:q`, `:wq`), permitindo que usuários experientes de terminal sejam produtivos desde o primeiro segundo.
 - **Alinhamento automático inteligente de tabelas:** O motor de tabelas ajusta larguras de colunas e espaçamentos dinamicamente durante a digitação de pipes (`|`), garantindo tabelas visualmente elegantes no terminal e arquivos `.md` perfeitamente estruturados em disco.
 - **Integração total com pipelines e ferramentas de IA no terminal:** Suporte nativo para abrir arquivos diretamente (`mdn doc.md`), iniciar buffers scratchpad temporários (`mdn`) e ler saídas de pipes (`cat output.md | mdn`), agilizando a inspeção de respostas de LLMs.
+- **Seleção e transferência direta de texto:** Arrastar o mouse destaca o conteúdo real do buffer; copiar e colar usam a área de transferência do sistema, respeitam as quebras de linha e preservam os marcadores Markdown.
 
 ## 3. Target Audience
 
@@ -52,6 +54,7 @@ Construído em *Go* com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compi
 - **Fornecer renderização Markdown em tempo real:** Formatar títulos, ênfases tipográficas e tabelas na tela durante a edição com latência de resposta inferior a 16 milissegundos (60 FPS) sem ocultar marcadores estruturais.
 - **Garantir emulação ergonômica de comandos do Vim:** Implementar 100% dos comandos essenciais de navegação, edição modal, busca e manipulação de arquivos do padrão Vim.
 - **Oferecer customização visual completa via TOML:** Permitir a alternância entre 7 temas pré-configurados e a definição de esquemas de cores customizados em RGB Truecolor.
+- **Facilitar a troca de conteúdo com outros programas:** Permitir selecionar texto com o mouse, copiá-lo para a área de transferência do sistema e colar texto externo no buffer sem perda de caracteres ou quebras de linha.
 
 ### Success Metrics
 
@@ -59,6 +62,7 @@ Construído em *Go* com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compi
 - **Taxa de Renderização Interativa:** Latência de atualização de frame inferior a 16 ms em operações de digitação contínua e rolagem vertical.
 - **Fidelidade de Parsing e Salvamento:** 0% de corrupção ou perda de dados em operações de leitura e gravação de arquivos Markdown com tabelas e caracteres UTF-8.
 - **Tamanho do Binário Compilado:** Binário único compilado com tamanho inferior a 25 MB e consumo de memória RAM em execução inferior a 30 MB.
+- **Fidelidade da transferência de texto:** Em testes com trechos de até 10.000 caracteres UTF-8 e 200 linhas, 100% das operações de copiar e colar preservam caracteres, marcadores Markdown e quebras de linha lógicas.
 
 ## 5. User Stories
 
@@ -108,12 +112,18 @@ Construído em *Go* com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compi
 - As a user, I want to press `Enter` to atomically save my modified configuration to `config.toml` on disk and immediately apply it to the active editor session.
 - As a user, I want to press `Esc` or `q` to dismiss the configuration panel, discarding unsaved changes and reverting to the original configuration.
 
+### F09. Seleção com mouse e transferência de texto
+- Como usuário, quero arrastar o mouse sobre o documento para selecionar caracteres, inclusive em várias linhas e linhas quebradas visualmente, e ver exatamente o trecho selecionado.
+- Como usuário, quero copiar a seleção para a área de transferência do sistema com `Cmd+C` ou `Ctrl+C`, conforme o atalho encaminhado pelo terminal ao editor.
+- Como usuário, quero colar no editor texto copiado de outro programa com `Cmd+V` ou `Ctrl+V`, conforme o atalho encaminhado pelo terminal, preservando caracteres UTF-8, marcadores Markdown e quebras de linha.
+- Como usuário, quero substituir uma seleção ativa ao colar e desfazer essa inserção em uma única operação.
+
 ## 6. Functionalities
 
 ### F01. CLI Entrypoint & File Buffer Manager
 
 **Provides:**
-- Buffer state contendo caminho do arquivo, linhas de texto brutas, flag de modificação (dirty), posição do cursor e modo de entrada (used by F03, F04, F05, F06, F07)
+- Buffer state contendo caminho do arquivo, linhas de texto brutas, quebras de linha, flag de modificação (dirty), posição do cursor e modo de entrada (used by F03, F04, F05, F06, F07, F09)
 
 **Core Scope:**
 - Leitura e abertura de arquivos de disco no caminho especificado via CLI
@@ -181,7 +191,8 @@ Construído em *Go* com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compi
 - F01: Buffer state (caminho do arquivo, linhas de texto brutas, flag de modificação, posição do cursor)
 
 **Provides:**
-- Modal state contendo modo ativo (NORMAL, INSERT, VISUAL, COMMAND, SEARCH), seleção visual ativa, pilha de Undo/Redo, comando em digitação e padrão de busca (used by F06, F07, F08)
+- Modal state contendo modo ativo (NORMAL, INSERT, VISUAL, COMMAND, SEARCH), seleção visual ativa, pilha de Undo/Redo, comando em digitação e padrão de busca (used by F06, F07, F08, F09)
+- Integração com a área de transferência do sistema para leitura e escrita de texto simples (used by F09)
 
 **Core Scope:**
 - Modos de operação: Normal, Insert, Visual (por caractere `v` e por linha `V`), Command-line (`:`), Search (`/` e `?`)
@@ -344,6 +355,7 @@ Construído em *Go* com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compi
 
 **Provides:**
 - Renderização visual consolidada de terminal via loop de renderização do Bubble Tea
+- Mapeamento entre células visíveis do viewport e posições lógicas do documento, incluindo rolagem, gutter e quebra visual de linha (used by F09)
 
 **Core Scope:**
 - Renderização do viewport principal com rolagem vertical e horizontal suave
@@ -411,6 +423,35 @@ Construído em *Go* com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compi
 - **Falha de permissão ao gravar config.toml:** Se o arquivo de configuração estiver em diretório protegido contra escrita ou disco cheio, exibe alerta vermelho dentro do modal: `Erro ao gravar config.toml: Permissão negada` sem fechar o diálogo.
 - **Janela de terminal insuficiente:** Se as dimensões do terminal forem inferiores a 50x14, o comando `:c`/`:config` emite mensagem na barra de status: `Dimensão insuficiente (mínimo 50x14) para abrir o painel de configurações`.
 
+### F09. Seleção com mouse e transferência de texto
+
+**Consumes:**
+- F01: linhas de texto brutas, quebras de linha e posição do cursor no buffer
+- F03: modo ativo, seleção visual, histórico de desfazer/refazer e integração com a área de transferência do sistema
+- F07: mapeamento entre células visíveis do viewport e posições lógicas do documento, incluindo rolagem, gutter e quebra visual de linha
+
+**Capabilities:**
+- Pressionar o botão primário sobre o texto inicia uma seleção por caractere; arrastar até outra posição estende a seleção, inclusive por várias linhas. Coordenadas sobre o gutter ou fora da área de texto são limitadas à primeira ou última posição válida da linha visível.
+- O intervalo selecionado corresponde ao texto bruto do buffer, incluindo os marcadores Markdown visíveis. Quebras causadas apenas por `word_wrap` não inserem caracteres de nova linha na cópia; quebras lógicas entre linhas são preservadas.
+- `Cmd+C` ou `Ctrl+C` copiam a seleção ativa como texto UTF-8 quando o terminal encaminha o evento ao editor. `Ctrl+C` sem seleção mantém o comportamento atual de saída protegida por alterações não salvas. Atalhos `Cmd` interceptados pelo terminal seguem a configuração do próprio terminal.
+- `Cmd+V` ou `Ctrl+V`, quando recebidos pelo editor, inserem texto simples da área de transferência na posição do cursor em modo INSERT ou substituem a seleção ativa do editor. A colagem encaminhada pelo terminal como texto ou sequência de bracketed paste produz o mesmo resultado, sem executar comandos Vim contidos no texto. `Ctrl+V` em modo NORMAL sem seleção continua reservado ao Visual Block.
+- Colagens de até 10.000 caracteres UTF-8 ou 200 linhas constituem uma única alteração no histórico de desfazer. A inserção marca o buffer como modificado e mantém as terminações de linha compatíveis com o documento aberto.
+- A seleção com mouse não altera o arquivo até que haja colagem ou outra edição; copiar não modifica o buffer nem o estado de alterações pendentes.
+- Um clique com o botão direito dentro do documento copia a seleção ativa. Sem seleção, o mesmo gesto cola o texto simples do clipboard na posição clicada; a área vazia abaixo da última linha usa o fim do documento.
+
+**Experience:**
+- Com o documento aberto, o usuário pressiona o botão primário dentro do viewport e arrasta o ponteiro. O destaque acompanha cada posição, mesmo após rolagem ou quebra visual de linha, e a barra de status mostra `-- VISUAL --` enquanto a seleção está ativa.
+- Ao soltar o botão, o destaque permanece. Com seleção ativa, o usuário aciona `Cmd+C` ou `Ctrl+C`; o trecho é copiado para a área de transferência do sistema e a barra de status mostra `Texto copiado`. `Esc` ou um clique simples fora da seleção a cancela sem modificar o documento.
+- O usuário também pode clicar com o botão direito para copiar a seleção; sem seleção, o clique direito cola no ponto indicado, com as mesmas mensagens de erro e o mesmo desfazer da colagem por teclado.
+- Após copiar texto em outro programa, o usuário posiciona o cursor, entra em INSERT e usa o atalho de colar aceito pelo terminal. Se uma seleção do editor estiver ativa, a colagem a substitui. O texto aparece literalmente, o indicador `[+]` é exibido e `u` desfaz toda a colagem em uma única etapa.
+- Quando o terminal consome `Cmd+C`/`Cmd+V` antes de encaminhá-los, a seleção permanece visível e o editor aceita os eventos de colagem de texto que o terminal efetivamente entregar; o comportamento dos atalhos externos é documentado como dependente do emulador de terminal.
+
+**Error Handling:**
+- **Área de transferência indisponível ao copiar:** preserva a seleção e exibe `Não foi possível copiar para a área de transferência`; não afirma que a cópia foi concluída.
+- **Área de transferência vazia ou sem texto ao colar:** não modifica o buffer e exibe `Área de transferência sem texto para colar`.
+- **Falha de leitura da área de transferência:** não modifica o buffer e exibe `Não foi possível ler a área de transferência`.
+- **Colagem acima do limite suportado:** não faz inserção parcial e exibe `Texto para colar excede 10.000 caracteres ou 200 linhas`.
+
 ## 7. Out of Scope
 
 - **Renderização de imagens gráficas inline:** Exibição de bitmaps, PNGs ou gráficos via protocolos Sixel / Kitty Graphics não faz parte da versão 1.0 (apenas a sintaxe `![alt](url)` será destacada textualmente).
@@ -419,6 +460,7 @@ Construído em *Go* com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compi
 - **Servidor de colaboração em tempo real:** Edição multiusuário remota simultânea via WebSockets ou CRDTs está fora do escopo.
 - **Gerenciador de múltiplos buffers com abas ou árvore de arquivos (File Tree):** O editor focará na experiência direta de arquivo único / scratchpad / pipe de terminal por sessão.
 - **Download e instalação remota de temas via rede:** O painel de configurações gerencia exclusivamente temas embutidos e parâmetros locais do arquivo `config.toml`; não haverá catálogo online ou marketplace de temas na v1.0.
+- **Conteúdo rico da área de transferência:** Imagens, HTML formatado, arquivos e múltiplos formatos simultâneos não serão importados; copiar e colar operam apenas sobre texto simples.
 
 ## 8. Dependency Graph
 
@@ -434,6 +476,7 @@ Construído em *Go* com a biblioteca Bubble Tea e Lipgloss, o **md-notes** compi
 | F06 | Interactive Search & Replace System | 2 | F01, F02, F03 |
 | F07 | TUI Viewport & Status Line Renderer | 1 | F01, F02, F03, F04, F05, F06 |
 | F08 | Interactive Configuration Panel & Settings UI | 2 | F02, F03, F07 |
+| F09 | Seleção com mouse e transferência de texto | 2 | F01, F03, F07 |
 
 ### Part 2: Foundation Features
 These features set up shared project infrastructure. In a greenfield project they must be implemented sequentially before or alongside any feature that depends on them:
@@ -449,7 +492,7 @@ Features within the same wave can be built in parallel. A wave starts only after
 - **Wave 2**: F03, F04
 - **Wave 3**: F05, F06
 - **Wave 4**: F07
-- **Wave 5**: F08
+- **Wave 5**: F08, F09
 
 ### Part 4: Priority levels
 - **1** = Essential — product does not work without it
@@ -478,6 +521,9 @@ graph TD
   F02 --> F08[Config Panel]
   F03 --> F08
   F07 --> F08
+  F01 --> F09[Mouse & Clipboard]
+  F03 --> F09
+  F07 --> F09
 ```
 
 ## 9. Acceptance Criteria
@@ -548,6 +594,19 @@ graph TD
 - [ ] Em caso de erro de gravação de arquivo no disco, o painel exibe aviso de falha na interface sem travar a sessão.
 - [ ] Em terminais com dimensões menores que 50x14, o editor recusa abrir o modal e emite alerta informativo na linha de status.
 
+### F09. Seleção com mouse e transferência de texto
+- [ ] Arrastar o botão primário seleciona exatamente o texto bruto correspondente às posições inicial e final, inclusive em várias linhas, com gutter, rolagem e `word_wrap` ativos.
+- [ ] Uma quebra visual por `word_wrap` não acrescenta `\n` ao texto copiado; uma quebra lógica do documento é preservada.
+- [ ] Com seleção ativa e evento recebido pelo editor, `Cmd+C` ou `Ctrl+C` copia para a área de transferência do sistema os caracteres UTF-8 e marcadores Markdown selecionados.
+- [ ] `Ctrl+C` sem seleção mantém a proteção existente contra saída com alterações não salvas.
+- [ ] Com o editor em INSERT, texto simples copiado de outro programa e colado por atalho ou bracketed paste é inserido literalmente, sem executar comandos contidos no texto.
+- [ ] Colar com seleção ativa substitui somente o intervalo selecionado, marca o buffer como modificado e pode ser desfeito com uma única operação `u`.
+- [ ] Copiar não marca o buffer como modificado; `Esc` cancela a seleção sem alterar o documento.
+- [ ] Para trechos de até 10.000 caracteres UTF-8 ou 200 linhas, copiar e colar preservam integralmente caracteres, marcadores Markdown e quebras de linha lógicas.
+- [ ] Se a área de transferência estiver vazia ou indisponível, o editor informa o problema e deixa buffer e seleção sem alterações; texto acima do limite é recusado sem inserção parcial.
+- [ ] Com seleção ativa, um clique com o botão direito na área do documento copia o Markdown bruto selecionado para a área de transferência, sem modificar o buffer; falhas preservam a seleção.
+- [ ] Sem seleção ativa, um clique com o botão direito na área do documento cola o texto simples do clipboard na posição clicada, inclusive no espaço vazio abaixo da última linha; a operação é desfeita em uma etapa e erros não modificam o documento.
+
 ### Cross-Feature Integration
 - [ ] O Buffer State gerenciado por F01 fornece dados íntegros para a edição modal (F03), parsing de markdown (F04), tabelas (F05), busca (F06) e viewport (F07).
 - [ ] As definições de estilo do Theme Engine (F02) são consumidas e aplicadas uniformemente pelo parser de markdown (F04), tabelas (F05), destaques de busca (F06) e barra de status (F07).
@@ -559,3 +618,6 @@ graph TD
 - [ ] As opções e paletas gerenciadas pelo Configuration & Theme Engine (F02) são consumidas e manipuladas pela interface do Configuration Panel (F08).
 - [ ] A gravação de novas preferências em F08 persiste o arquivo TOML e notifica F02 e F07 para recarregamento e reaplicação imediata de estilos e layouts.
 - [ ] O TUI Viewport (F07) centraliza e renderiza a camada visual de sobreposição de F08 mantendo o documento de fundo íntegro.
+- [ ] As linhas brutas, quebras lógicas e posição do cursor fornecidas por F01 determinam exatamente o conteúdo selecionado e o ponto de inserção de F09.
+- [ ] O modo, a seleção visual, o histórico e a integração com a área de transferência fornecidos por F03 permitem a F09 copiar, substituir e desfazer o texto sem executar comandos Vim durante a colagem.
+- [ ] O mapeamento entre células visíveis e posições lógicas fornecido por F07 permite à F09 selecionar corretamente com gutter, rolagem e linhas quebradas visualmente.

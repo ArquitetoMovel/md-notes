@@ -1,8 +1,10 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -87,6 +89,8 @@ type Model struct {
 	Quitting       bool
 	Width          int
 	Height         int
+	mouseDragging  bool
+	mouseSelection bool
 
 	// Settings panel state (F08)
 	SettingsOpen  bool
@@ -285,6 +289,11 @@ func (m *Model) Init() tea.Cmd {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		m.mouseDragging = false
+		if m.mouseSelection && m.Vim != nil && m.Vim.State.CurrentMode == vim.ModeVisualChar {
+			m.Vim.SetMode(vim.ModeNormal)
+		}
+		m.mouseSelection = false
 		m.Width = msg.Width
 		m.Height = msg.Height
 		vpHeight := msg.Height - 2
@@ -356,6 +365,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.Buffer.IsDirty {
 			reloaded, err := buffer.LoadFromFile(msg.Path)
 			if err == nil {
+				m.mouseDragging = false
+				if m.mouseSelection && m.Vim != nil && m.Vim.State.CurrentMode == vim.ModeVisualChar {
+					m.Vim.SetMode(vim.ModeNormal)
+				}
+				m.mouseSelection = false
 				m.Buffer = reloaded
 				if m.Vim != nil {
 					m.Vim.Buffer = reloaded
@@ -381,6 +395,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ThemeBackup = m.Theme
 		m.SettingsState = ui.NewSettingsState(m.Config)
 		m.SettingsOpen = true
+		m.mouseDragging = false
+		m.mouseSelection = false
 		m.StatusMsg = ""
 		return m, nil
 
@@ -454,16 +470,99 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
+		if m.Viewport == nil || m.Buffer == nil || m.Vim == nil {
+			return m, nil
+		}
+		if m.Vim.State.CurrentMode == vim.ModeCommand || m.Vim.State.CurrentMode == vim.ModeSearch {
+			return m, nil
+		}
+		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonRight {
+			point, ok := m.Viewport.MouseToPasteCursor(msg.X, msg.Y, m.Buffer)
+			if !ok {
+				return m, nil
+			}
+			if m.Vim.State.Selection != nil {
+				copied, err := m.Vim.CopySelection()
+				if err != nil {
+					m.StatusMsg = "Não foi possível copiar para a área de transferência"
+					return m, nil
+				}
+				if copied {
+					m.Vim.SetMode(vim.ModeNormal)
+					m.mouseSelection = false
+					m.mouseDragging = false
+					m.StatusMsg = "Texto copiado"
+				}
+				return m, nil
+			}
+			if err := m.Vim.PasteClipboardAt(point); err != nil {
+				m.StatusMsg = pasteStatus(err)
+				return m, nil
+			}
+			m.mouseDragging = false
+			m.StatusMsg = ""
+			return m, nil
+		}
+		if msg.Action == tea.MouseActionRelease && m.mouseDragging {
+			if point, ok := m.Viewport.MouseToCursor(msg.X, msg.Y, m.Buffer); ok {
+				m.Buffer.Cursor = point
+				m.Vim.State.Selection.End = vim.Position{Line: point.Line, Col: point.Col}
+			}
+			m.mouseDragging = false
+			if m.Vim.State.Selection != nil && m.Vim.State.Selection.Start == m.Vim.State.Selection.End {
+				m.Vim.SetMode(vim.ModeNormal)
+				m.mouseSelection = false
+			}
+			return m, nil
+		}
+		if msg.Action != tea.MouseActionPress && (msg.Action != tea.MouseActionMotion || !m.mouseDragging) {
+			return m, nil
+		}
+		if msg.Action == tea.MouseActionPress && msg.Button != tea.MouseButtonLeft {
+			return m, nil
+		}
+		if msg.Action == tea.MouseActionMotion && msg.Button != tea.MouseButtonLeft && msg.Button != tea.MouseButtonNone {
+			return m, nil
+		}
+		point, ok := m.Viewport.MouseToCursor(msg.X, msg.Y, m.Buffer)
+		if !ok {
+			return m, nil
+		}
+		m.Buffer.Cursor = point
+		if msg.Action == tea.MouseActionPress {
+			m.StatusMsg = ""
+			m.mouseDragging = true
+			m.mouseSelection = true
+			m.Vim.State.CurrentMode = vim.ModeVisualChar
+			m.Vim.State.Selection = &vim.Selection{
+				Start: vim.Position{Line: point.Line, Col: point.Col},
+				End:   vim.Position{Line: point.Line, Col: point.Col},
+				Type:  vim.ModeVisualChar,
+			}
+		} else {
+			m.Vim.State.Selection.End = vim.Position{Line: point.Line, Col: point.Col}
+		}
 		return m, nil
 
 	case tea.KeyMsg:
-		if msg.Type == tea.KeyCtrlC || msg.String() == "ctrl+c" {
-			if m.Buffer.IsDirty {
-				m.StatusMsg = "E37: Alterações não salvas. Use :w para salvar ou :q! para forçar a saída"
+		m.mouseDragging = false
+		if msg.Paste {
+			if m.SettingsOpen || m.Vim == nil {
 				return m, nil
 			}
-			m.Quitting = true
-			return m, tea.Quit
+			for _, r := range msg.Runes {
+				if !utf8.ValidRune(r) || r == utf8.RuneError {
+					m.StatusMsg = pasteStatus(vim.ErrPasteInvalidUTF8)
+					return m, nil
+				}
+			}
+			if err := m.Vim.PasteText(string(msg.Runes)); err != nil {
+				m.StatusMsg = pasteStatus(err)
+				return m, nil
+			}
+			m.mouseSelection = false
+			m.StatusMsg = ""
+			return m, nil
 		}
 
 		// Global F2 toggle shortcut
@@ -506,10 +605,50 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		if msg.Type == tea.KeyCtrlC || msg.String() == "ctrl+c" {
+			if m.Vim != nil && m.Vim.State.Selection != nil {
+				copied, err := m.Vim.CopySelection()
+				if err != nil {
+					m.StatusMsg = "Não foi possível copiar para a área de transferência"
+					return m, nil
+				}
+				if copied {
+					m.Vim.SetMode(vim.ModeNormal)
+					m.mouseSelection = false
+					m.StatusMsg = "Texto copiado"
+					return m, nil
+				}
+			}
+			if m.Buffer.IsDirty {
+				m.StatusMsg = "E37: Alterações não salvas. Use :w para salvar ou :q! para forçar a saída"
+				return m, nil
+			}
+			m.Quitting = true
+			return m, tea.Quit
+		}
+		if msg.Type == tea.KeyCtrlV || msg.String() == "ctrl+v" {
+			if m.Vim != nil && (m.Vim.State.CurrentMode == vim.ModeInsert || m.Vim.State.Selection != nil) {
+				if err := m.Vim.PasteClipboard(); err != nil {
+					m.StatusMsg = pasteStatus(err)
+					return m, nil
+				}
+				m.mouseSelection = false
+				m.StatusMsg = ""
+				return m, nil
+			}
+			if m.Vim != nil && (m.Vim.State.CurrentMode == vim.ModeCommand || m.Vim.State.CurrentMode == vim.ModeSearch) {
+				return m, nil
+			}
+		}
+
 		if m.Vim != nil {
+			wasSelected := m.Vim.State.Selection != nil
+			m.mouseSelection = false
 			cmd, statusMsg := m.Vim.HandleKey(msg)
 			if statusMsg != "" {
 				m.StatusMsg = statusMsg
+			} else if wasSelected && m.Vim.State.Selection == nil {
+				m.StatusMsg = ""
 			}
 			if cmd != nil {
 				return m, cmd
@@ -519,6 +658,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func pasteStatus(err error) string {
+	switch {
+	case errors.Is(err, vim.ErrPasteEmpty):
+		return "Área de transferência sem texto para colar"
+	case errors.Is(err, vim.ErrPasteRead):
+		return "Não foi possível ler a área de transferência"
+	case errors.Is(err, vim.ErrPasteLimit):
+		return "Texto para colar excede 10.000 caracteres ou 200 linhas"
+	case errors.Is(err, vim.ErrPasteInvalidUTF8), errors.Is(err, buffer.ErrInvalidUTF8):
+		return "Texto para colar contém UTF-8 inválido"
+	case errors.Is(err, vim.ErrPasteBlocked):
+		return ""
+	default:
+		return "Não foi possível colar o texto"
+	}
 }
 
 func isLineInCodeBlock(lines []buffer.Line, targetLineIdx int) (bool, string) {
@@ -832,7 +988,9 @@ func (m *Model) View() string {
 	}
 
 	totalLines := m.Buffer.LineCount()
-	m.Viewport.AdjustScrollWithBuffer(m.Buffer.Cursor, m.Buffer)
+	if !m.mouseSelection {
+		m.Viewport.AdjustScrollWithBuffer(m.Buffer.Cursor, m.Buffer)
+	}
 
 	visibleLines := m.Viewport.GetVisibleLines(m.Buffer)
 	vpHeight := m.Viewport.Height
